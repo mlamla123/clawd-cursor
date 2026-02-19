@@ -2,7 +2,7 @@
  * Agent — the main orchestration loop.
  * 
  * Takes a task, repeatedly:
- * 1. Captures screen
+ * 1. Captures screen (only when needed)
  * 2. Sends to AI brain
  * 3. Checks safety
  * 4. Executes action via VNC
@@ -15,7 +15,8 @@ import { SafetyLayer } from './safety';
 import { SafetyTier } from './types';
 import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction } from './types';
 
-const MAX_STEPS = 50;  // Safety limit per task
+const MAX_STEPS = 20;  // Reduced — if it takes 20 steps, something's wrong
+const MAX_SAME_ACTION = 3;  // Abort if same action repeated this many times
 
 export class Agent {
   private vnc: VNCClient;
@@ -38,6 +39,8 @@ export class Agent {
 
   async connect(): Promise<void> {
     await this.vnc.connect();
+    const size = this.vnc.getScreenSize();
+    this.brain.setScreenSize(size.width, size.height);
   }
 
   async executeTask(task: string): Promise<TaskResult> {
@@ -52,8 +55,14 @@ export class Agent {
     const steps: StepResult[] = [];
     const stepDescriptions: string[] = [];
     const startTime = Date.now();
+    let lastDescription = '';
+    let sameActionCount = 0;
+    let needsScreenshot = true;
+    let lastScreenshot = await this.vnc.captureScreen(); // Initial capture
 
     console.log(`\n🐾 Starting task: ${task}`);
+    console.log(`   Screen: ${lastScreenshot.width}x${lastScreenshot.height}`);
+    console.log(`   Screenshot size: ${(lastScreenshot.buffer.length / 1024).toFixed(0)}KB`);
 
     for (let i = 0; i < MAX_STEPS; i++) {
       if (this.aborted) {
@@ -61,15 +70,21 @@ export class Agent {
         break;
       }
 
-      // 1. Capture screen
-      this.state.status = 'thinking';
-      this.state.currentStep = 'Analyzing screen...';
-      console.log(`\n📸 Step ${i + 1}: Capturing screen...`);
-      
-      const screenshot = await this.vnc.captureScreen();
+      // 1. Capture screen only if needed
+      if (needsScreenshot && i > 0) {
+        console.log(`\n📸 Step ${i + 1}: Capturing screen...`);
+        // Wait a bit for UI to settle after last action
+        await this.delay(1000);
+        lastScreenshot = await this.vnc.captureScreen();
+      } else if (i > 0) {
+        console.log(`\n📸 Step ${i + 1}: Reusing last screenshot`);
+      } else {
+        console.log(`\n📸 Step 1: Using initial screenshot`);
+      }
 
       // 2. Ask AI what to do
-      const decision = await this.brain.decideNextAction(screenshot, task, stepDescriptions);
+      this.state.status = 'thinking';
+      const decision = await this.brain.decideNextAction(lastScreenshot, task, stepDescriptions);
 
       // 3. Check if done
       if (decision.done) {
@@ -100,12 +115,31 @@ export class Agent {
         console.log(`⏳ Waiting ${decision.waitMs}ms: ${decision.description}`);
         await this.delay(decision.waitMs);
         stepDescriptions.push(decision.description);
+        needsScreenshot = true;
         continue;
       }
 
       if (!decision.action) continue;
 
-      // 6. Safety check
+      // 6. Detect repeated failures
+      if (decision.description === lastDescription) {
+        sameActionCount++;
+        if (sameActionCount >= MAX_SAME_ACTION) {
+          console.log(`🔄 Same action repeated ${MAX_SAME_ACTION} times — aborting`);
+          steps.push({
+            action: 'stuck',
+            description: `Stuck: repeated "${decision.description}" ${MAX_SAME_ACTION} times`,
+            success: false,
+            timestamp: Date.now(),
+          });
+          break;
+        }
+      } else {
+        sameActionCount = 0;
+        lastDescription = decision.description;
+      }
+
+      // 7. Safety check
       const tier = this.safety.classify(decision.action, decision.description);
       console.log(`${tierEmoji(tier)} Action: ${decision.description}`);
 
@@ -123,7 +157,7 @@ export class Agent {
       if (tier === SafetyTier.Confirm) {
         this.state.status = 'waiting_confirm';
         this.state.currentStep = `Confirm: ${decision.description}`;
-        
+
         const approved = await this.safety.requestConfirmation(decision.action, decision.description);
         if (!approved) {
           console.log(`❌ User rejected action`);
@@ -133,19 +167,21 @@ export class Agent {
             success: false,
             timestamp: Date.now(),
           });
-          continue; // Skip this action, let AI try something else
+          continue;
         }
       }
 
-      // 7. Execute action
+      // 8. Execute action
       this.state.status = 'acting';
       this.state.currentStep = decision.description;
 
       try {
         if ('x' in decision.action) {
           await this.vnc.executeMouseAction(decision.action);
+          needsScreenshot = true; // Screen changed after mouse action
         } else {
           await this.vnc.executeKeyboardAction(decision.action);
+          needsScreenshot = true; // Screen changed after keyboard action
         }
 
         steps.push({
@@ -158,9 +194,6 @@ export class Agent {
         stepDescriptions.push(decision.description);
         this.state.stepsCompleted = i + 1;
 
-        // Brief pause to let UI update
-        await this.delay(500);
-
       } catch (err) {
         console.error(`Failed to execute action:`, err);
         steps.push({
@@ -170,6 +203,7 @@ export class Agent {
           error: String(err),
           timestamp: Date.now(),
         });
+        needsScreenshot = true;
       }
     }
 
@@ -177,11 +211,14 @@ export class Agent {
     this.state.currentTask = undefined;
     this.brain.resetConversation();
 
-    return {
-      success: steps[steps.length - 1]?.success ?? false,
+    const result: TaskResult = {
+      success: steps.length > 0 && steps[steps.length - 1]?.success === true,
       steps,
       duration: Date.now() - startTime,
     };
+
+    console.log(`\n⏱️  Task took ${(result.duration / 1000).toFixed(1)}s with ${steps.length} steps`);
+    return result;
   }
 
   abort(): void {
@@ -212,4 +249,3 @@ function tierEmoji(tier: SafetyTier): string {
     case SafetyTier.Confirm: return '🔴';
   }
 }
-

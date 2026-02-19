@@ -112,8 +112,8 @@ export const DEFAULT_CONFIG: ClawdConfig = {
   },
   capture: {
     format: 'jpeg',
-    quality: 80,
-    maxWidth: 1280,
+    quality: 70,
+    maxWidth: 0,  // 0 = native resolution (no resize)
   },
 };
 

@@ -1,18 +1,21 @@
 /**
  * AI Brain — sends screenshots to a vision LLM and gets back
  * structured actions (click here, type this, press that key).
- * 
- * The LLM acts as the "eyes and brain" — it sees the screen
- * and decides what to do next to accomplish the task.
  */
 
 import type { ClawdConfig, InputAction, ScreenFrame, MouseAction, KeyboardAction } from './types';
 
-const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent controlling a computer via VNC.
-You can see the screen and execute mouse/keyboard actions.
+const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent controlling a Windows 11 computer via VNC.
+The screen resolution is {WIDTH}x{HEIGHT}. You can see the screen and execute mouse/keyboard actions.
+
+IMPORTANT - Windows 11 layout:
+- The taskbar is at the BOTTOM of the screen, centered
+- The Start button (Windows logo) is in the CENTER of the taskbar, NOT bottom-left
+- Taskbar icons are centered by default
+- The system tray (clock, icons) is on the bottom-RIGHT
 
 When given a task, analyze the screenshot and respond with the NEXT SINGLE ACTION to take.
-Respond in JSON format:
+Respond with ONLY valid JSON, no other text:
 
 For mouse actions:
 {"kind": "click", "x": 500, "y": 300, "description": "Click the Chrome icon on taskbar"}
@@ -24,6 +27,7 @@ For keyboard actions:
 {"kind": "type", "text": "hello world", "description": "Type search query"}
 {"kind": "key_press", "key": "Return", "description": "Press Enter to submit"}
 {"kind": "key_press", "key": "ctrl+a", "description": "Select all text"}
+{"kind": "key_press", "key": "Super", "description": "Press Windows key"}
 
 Special responses:
 {"kind": "done", "description": "Task completed successfully"}
@@ -31,23 +35,31 @@ Special responses:
 {"kind": "wait", "description": "Waiting for page to load", "waitMs": 2000}
 
 Rules:
-- ONE action per response
-- Always include "description" explaining what you're doing and why
-- Use exact pixel coordinates based on what you see in the screenshot
-- If you can't see what you need, try scrolling or navigating first
-- If stuck, explain why in an error response
-- Be precise with click targets — aim for center of buttons/links`;
+- ONE action per response, ONLY JSON
+- Use exact pixel coordinates from the screenshot — coordinates correspond to ACTUAL screen pixels
+- Be precise — aim for the CENTER of buttons/links/icons
+- If the same action fails 2+ times, try a different approach (keyboard shortcut instead of click, etc.)
+- If you see the task is already done (e.g. Start menu already open), respond with done
+- The screenshot is the FULL screen at native resolution`;
 
 export class AIBrain {
   private config: ClawdConfig;
   private conversationHistory: Array<{ role: string; content: any }> = [];
+  private screenWidth: number = 0;
+  private screenHeight: number = 0;
 
   constructor(config: ClawdConfig) {
     this.config = config;
   }
 
+  setScreenSize(width: number, height: number) {
+    this.screenWidth = width;
+    this.screenHeight = height;
+  }
+
   /**
    * Given a screenshot and task context, decide the next action.
+   * Uses conversation history so AI remembers what it already tried.
    */
   async decideNextAction(
     screenshot: ScreenFrame,
@@ -66,14 +78,18 @@ export class AIBrain {
     // Build the user message with context
     let userMessage = `Task: ${task}\n`;
     if (previousSteps.length > 0) {
-      userMessage += `\nSteps completed so far:\n${previousSteps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n`;
+      const recent = previousSteps.slice(-5); // Only last 5 steps for context
+      userMessage += `\nLast ${recent.length} steps:\n${recent.map((s, i) => `${previousSteps.length - recent.length + i + 1}. ${s}`).join('\n')}\n`;
     }
-    userMessage += `\nAnalyze the screenshot and provide the next action.`;
+    userMessage += `\nWhat is the next action? Respond with ONLY JSON.`;
 
-    const response = await this.callVisionLLM(userMessage, base64Image, mediaType);
+    const systemPrompt = SYSTEM_PROMPT
+      .replace('{WIDTH}', String(this.screenWidth))
+      .replace('{HEIGHT}', String(this.screenHeight));
+
+    const response = await this.callVisionLLM(systemPrompt, userMessage, base64Image, mediaType);
 
     try {
-      // Parse the JSON response
       const jsonMatch = response.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) {
         return { action: null, description: 'Failed to parse AI response', done: false, error: response };
@@ -93,7 +109,6 @@ export class AIBrain {
         return { action: null, description: parsed.description, done: false, waitMs: parsed.waitMs || 2000 };
       }
 
-      // Mouse or keyboard action
       const action = parsed as InputAction;
       return { action, description: parsed.description, done: false };
     } catch (err) {
@@ -102,6 +117,7 @@ export class AIBrain {
   }
 
   private async callVisionLLM(
+    systemPrompt: string,
     userMessage: string,
     base64Image: string,
     mediaType: string,
@@ -109,15 +125,16 @@ export class AIBrain {
     const { provider, apiKey, visionModel } = this.config.ai;
 
     if (provider === 'anthropic') {
-      return this.callAnthropic(userMessage, base64Image, mediaType, apiKey!, visionModel);
+      return this.callAnthropic(systemPrompt, userMessage, base64Image, mediaType, apiKey!, visionModel);
     } else if (provider === 'openai') {
-      return this.callOpenAI(userMessage, base64Image, mediaType, apiKey!, visionModel);
+      return this.callOpenAI(systemPrompt, userMessage, base64Image, mediaType, apiKey!, visionModel);
     }
 
     throw new Error(`Unsupported AI provider: ${provider}`);
   }
 
   private async callAnthropic(
+    systemPrompt: string,
     userMessage: string,
     base64Image: string,
     mediaType: string,
@@ -133,8 +150,8 @@ export class AIBrain {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        max_tokens: 512,
+        system: systemPrompt,
         messages: [
           {
             role: 'user',
@@ -158,10 +175,15 @@ export class AIBrain {
     });
 
     const data = await response.json() as any;
+    if (data.error) {
+      console.error('Anthropic API error:', data.error);
+      throw new Error(data.error.message || 'Anthropic API error');
+    }
     return data.content?.[0]?.text || '';
   }
 
   private async callOpenAI(
+    systemPrompt: string,
     userMessage: string,
     base64Image: string,
     mediaType: string,
@@ -176,9 +198,9 @@ export class AIBrain {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
+        max_tokens: 512,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: [
@@ -206,4 +228,3 @@ export class AIBrain {
     this.conversationHistory = [];
   }
 }
-
