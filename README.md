@@ -1,51 +1,79 @@
 # 🐾 Clawd Cursor
 
-**AI Desktop Overlay Agent** — your AI gets its own cursor.
+**AI Desktop Agent over VNC** — your AI connects to your desktop like a remote user.
 
-Like TeamViewer, but the remote user is an AI. It operates alongside you on your desktop with its own independent cursor, using Windows accessibility APIs (automation-first, vision as fallback). You see everything it does in real time. Kill switch = close the app.
+## How It Works
+
+1. You run a VNC server on your machine (TightVNC, UltraVNC, etc.)
+2. Clawd Cursor connects as a VNC client
+3. AI sees your screen (on-demand frames, not continuous streaming)
+4. AI sends mouse clicks and keystrokes through the VNC protocol
+5. You can watch everything happening in real time via your own VNC viewer
 
 ## Architecture
 
-- **Automation-first**: Uses Windows UI Automation APIs to interact with apps directly — no screenshots needed for 80%+ of tasks
-- **Vision fallback**: Screenshots + AI vision only when accessibility APIs fail
-- **Overlay**: Transparent Electron window renders the AI's cursor and status on top of your desktop
-- **Safety tiers**: 🟢 Auto (read/navigate) · 🟡 Preview (type/fill) · 🔴 Confirm (send/delete/purchase)
+```
+┌──────────────────────────┐
+│     Your Desktop         │
+│   (VNC Server running)   │
+└──────────┬───────────────┘
+           │ VNC Protocol (RFB)
+┌──────────┴───────────────┐
+│   Clawd Cursor Agent     │
+│                          │
+│  ┌────────────────────┐  │
+│  │  VNC Client        │  │  ← connects as remote user
+│  │  (rfb2 / node-vnc) │  │
+│  └────────┬───────────┘  │
+│           │              │
+│  ┌────────┴───────────┐  │
+│  │  Action Engine     │  │  ← translates AI intent → VNC input
+│  │  mouse/keyboard    │  │
+│  └────────┬───────────┘  │
+│           │              │
+│  ┌────────┴───────────┐  │
+│  │  AI Brain          │  │  ← LLM decides what to do
+│  │  (OpenClaw / API)  │  │
+│  └────────┬───────────┘  │
+│           │              │
+│  ┌────────┴───────────┐  │
+│  │  Safety Layer      │  │  ← tiered confirmations
+│  └────────────────────┘  │
+│                          │
+│  ┌────────────────────┐  │
+│  │  REST API / CLI    │  │  ← you tell it what to do
+│  └────────────────────┘  │
+└──────────────────────────┘
+```
 
-## Packages
-
-| Package | Description |
-|---------|-------------|
-| `@clawd-cursor/shared` | Types, protocols, constants |
-| `@clawd-cursor/automation` | Windows UI Automation bindings |
-| `@clawd-cursor/vision` | Screenshot capture + vision model integration |
-| `@clawd-cursor/router` | Action routing + safety layer |
-| `@clawd-cursor/server` | Node.js backend + WebSocket IPC |
-| `@clawd-cursor/overlay` | Electron transparent overlay app |
-
-## Getting Started
+## Quick Start
 
 ```bash
+# 1. Install a VNC server (e.g. TightVNC) on your machine
+# 2. Start VNC server with a password
+
+# 3. Run Clawd Cursor
 pnpm install
 pnpm build
-pnpm dev
+pnpm start --host localhost --port 5900 --password yourpass
+
+# 4. Give it a task
+curl http://localhost:3847/task -d '{"task": "Open Chrome and go to github.com"}'
 ```
+
+## Safety Tiers
+
+- 🟢 **Auto**: Navigation, reading, opening apps
+- 🟡 **Preview**: Typing, form filling — logs before executing
+- 🔴 **Confirm**: Sending messages, deleting, purchases — pauses for approval
 
 ## Tech Stack
 
-- TypeScript monorepo (pnpm workspaces)
-- Electron (overlay)
-- Windows UI Automation via node-ffi-napi
-- Node.js + ws (server)
-- LLM integration (OpenClaw / direct API)
-
-## Safety
-
-Clawd Cursor is designed with real-time human oversight:
-- You see every action as it happens (overlay cursor)
-- Three-tier safety system (auto/preview/confirm)
-- Full audit log of all actions
-- Kill switch: close the app or press `Ctrl+Shift+G`
-- No background/hidden operations
+- TypeScript + Node.js
+- `rfb2` — VNC client library (RFB protocol)
+- `sharp` — screenshot processing
+- LLM vision (Claude, GPT-4o) — understands what's on screen
+- Express + WebSocket — REST API and real-time control
 
 ## License
 

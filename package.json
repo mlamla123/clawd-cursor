@@ -1,16 +1,31 @@
 {
   "name": "clawd-cursor",
   "version": "0.1.0",
-  "description": "AI desktop overlay agent — your AI gets its own cursor",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "description": "AI Desktop Agent over VNC — your AI connects to your desktop like a remote user",
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "pnpm -r build",
-    "dev": "pnpm -r --parallel dev",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "rfb2": "^0.2.0",
+    "sharp": "^0.33.0",
+    "express": "^4.18.0",
+    "ws": "^8.16.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "@types/express": "^4.17.0",
+    "@types/ws": "^8.5.0",
+    "@types/node": "^20.0.0",
+    "vitest": "^1.3.0"
   },
   "engines": {
     "node": ">=20.0.0"
