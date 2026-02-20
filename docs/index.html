@@ -306,6 +306,56 @@
         .nav-cta::after { display: none !important; }
         .nav-cta:hover { background: rgba(255,255,255,0.14) !important; border-color: rgba(255,255,255,0.2); }
 
+        /* OS Tabs */
+        .os-tabs {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            margin: 40px auto 0;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 4px;
+            width: fit-content;
+        }
+        .os-tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border: none;
+            background: transparent;
+            color: var(--text3);
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .os-tab:hover { color: var(--text2); background: rgba(255,255,255,0.03); }
+        .os-tab.active {
+            color: var(--text);
+            background: rgba(255,255,255,0.08);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .os-tab svg { opacity: 0.7; }
+        .os-tab.active svg { opacity: 1; }
+        .os-panel { display: none; margin-top: 24px; }
+        .os-panel.active { display: block; }
+        .os-note {
+            margin-top: 20px;
+            color: var(--text2);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .os-note strong { color: var(--text); }
+        .os-prereq {
+            margin-top: 10px;
+            color: var(--text3);
+            font-size: 0.83rem;
+        }
+
         /* Sections */
         .content { position: relative; z-index: 2; }
 
@@ -975,7 +1025,7 @@
                 <div class="pipeline-step step-2 highlight">
                     <div class="step-num">2</div>
                     <h4>Action Router</h4>
-                    <p>Queries Windows UI Automation — same API as JAWS/NVDA screen readers. Finds elements by name, not coordinates.</p>
+                    <p>Queries native accessibility APIs — Windows UI Automation, macOS AXUIElement, Linux AT-SPI2. Finds elements by name, not coordinates.</p>
                     <div class="pipeline-meta fast">✅ No LLM · 300ms · $0</div>
                 </div>
                 <div class="pipeline-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
@@ -997,7 +1047,7 @@
                 <div class="feature-card">
                     <div class="feature-icon fi-1">🔍</div>
                     <h4>UI Automation Tree</h4>
-                    <p>Queries the Windows accessibility API to find buttons, menus, and inputs by name — not pixel coordinates.</p>
+                    <p>Queries native accessibility APIs on Windows, macOS, and Linux to find buttons, menus, and inputs by name — not pixel coordinates.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon fi-2">⚡</div>
@@ -1046,36 +1096,106 @@
         <section id="install" class="reveal">
             <div class="section-label">Get Started</div>
             <h2>Up and running in 2 minutes</h2>
-            <div class="code-section">
-                <div class="code-header">
-                    <div class="code-dot r"></div>
-                    <div class="code-dot y"></div>
-                    <div class="code-dot g"></div>
-                    <span>terminal</span>
-                </div>
-                <pre><code><span class="c-comment"># Clone the repo</span>
+
+            <!-- OS Tabs -->
+            <div class="os-tabs">
+                <button class="os-tab active" data-os="windows">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.3l6.5-.9v6.3H0V2.3zm7.3-1l8.7-1.2v7.6H7.3V1.3zM16 8.5v7.6l-8.7-1.2V8.5H16zM6.5 14.6L0 13.7V8.5h6.5v6.1z"/></svg>
+                    Windows
+                </button>
+                <button class="os-tab" data-os="macos">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M12.2 5.3c-.1.1-1.8 1-1.8 3.2 0 2.5 2.2 3.4 2.2 3.4 0 .1-.3 1.2-1.1 2.3-.7 1-1.4 2-2.5 2s-1.4-.6-2.7-.6c-1.3 0-1.7.6-2.7.7-1 0-1.8-1.1-2.5-2.1C.2 12.7-.3 10.5-.3 8.4c0-3.4 2.2-5.2 4.4-5.2 1.1 0 2.1.7 2.8.7.7 0 1.8-.8 3.1-.8.5 0 2.3.1 3.2 1.2zm-3.4-2.2c.5-.6.9-1.5.9-2.4 0-.1 0-.3 0-.4-.9 0-1.9.6-2.5 1.3-.5.5-1 1.4-1 2.3 0 .1 0 .3 0 .4.1 0 .2 0 .3 0 .8 0 1.7-.6 2.3-1.2z"/></svg>
+                    macOS
+                </button>
+                <button class="os-tab" data-os="linux">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C5.2 0 4.4 2.9 4.4 4.8c0 1.1.3 2.2.7 3.2-.6.4-1.6 1.2-1.6 2.4 0 1 .5 1.6.5 1.6s-.4.5-.4 1.2c0 1.2 1.5 2.2 4.4 2.8 2.9-.6 4.4-1.6 4.4-2.8 0-.7-.4-1.2-.4-1.2s.5-.6.5-1.6c0-1.2-1-2-1.6-2.4.4-1 .7-2.1.7-3.2C11.6 2.9 10.8 0 8 0zm-1.5 6c-.6 0-1-.7-1-1.5S5.9 3 6.5 3s1 .7 1 1.5S7.1 6 6.5 6zm3 0c-.6 0-1-.7-1-1.5S8.9 3 9.5 3s1 .7 1 1.5S10.1 6 9.5 6z"/></svg>
+                    Linux
+                </button>
+            </div>
+
+            <!-- Windows -->
+            <div class="os-panel active" data-os="windows">
+                <div class="code-section">
+                    <div class="code-header">
+                        <div class="code-dot r"></div>
+                        <div class="code-dot y"></div>
+                        <div class="code-dot g"></div>
+                        <span>PowerShell</span>
+                    </div>
+                    <pre><code><span class="c-comment"># Clone & enter</span>
 <span class="c-cmd">git clone</span> <span class="c-string">https://github.com/AmrDab/clawd-cursor.git</span>
 <span class="c-cmd">cd</span> clawd-cursor
 
-<span class="c-comment"># One-command setup (installs TightVNC + builds project)</span>
+<span class="c-comment"># One-command setup (installs TightVNC + builds everything)</span>
 <span class="c-cmd">powershell</span> <span class="c-flag">-ExecutionPolicy Bypass -File</span> <span class="c-string">setup.ps1</span>
 
-<span class="c-comment"># Add your AI API key</span>
-<span class="c-comment"># Edit .env → AI_API_KEY=sk-...</span>
+<span class="c-comment"># Start the agent</span>
+<span class="c-cmd">npm start</span> <span class="c-flag">--</span> <span class="c-flag">--vnc-password</span> <span class="c-string">yourpass</span></code></pre>
+                </div>
+                <div class="os-note">
+                    <strong>Setup script handles:</strong> Node.js check · TightVNC download & silent install · npm install · TypeScript build · .env creation
+                </div>
+                <div class="os-prereq">Requires: Node.js 20+ · PowerShell · AI API key (optional — works offline for common tasks)</div>
+            </div>
+
+            <!-- macOS -->
+            <div class="os-panel" data-os="macos">
+                <div class="code-section">
+                    <div class="code-header">
+                        <div class="code-dot r"></div>
+                        <div class="code-dot y"></div>
+                        <div class="code-dot g"></div>
+                        <span>Terminal</span>
+                    </div>
+                    <pre><code><span class="c-comment"># Clone & enter</span>
+<span class="c-cmd">git clone</span> <span class="c-string">https://github.com/AmrDab/clawd-cursor.git</span>
+<span class="c-cmd">cd</span> clawd-cursor
+
+<span class="c-comment"># Install deps & build</span>
+<span class="c-cmd">npm install</span> && <span class="c-cmd">npm run build</span>
+
+<span class="c-comment"># Enable Screen Sharing (built-in VNC)</span>
+<span class="c-comment"># System Settings → General → Sharing → Screen Sharing → On</span>
 
 <span class="c-comment"># Start the agent</span>
-<span class="c-cmd">npm start</span> <span class="c-flag">--</span> <span class="c-flag">--vnc-password</span> <span class="c-string">yourpass</span>
+<span class="c-cmd">npm start</span> <span class="c-flag">--</span> <span class="c-flag">--vnc-password</span> <span class="c-string">yourpass</span></code></pre>
+                </div>
+                <div class="os-note">
+                    <strong>Accessibility:</strong> Uses macOS Accessibility APIs (AppleScript + AXUIElement) for the fast path — same system VoiceOver uses.
+                </div>
+                <div class="os-prereq">Requires: Node.js 20+ · Screen Sharing enabled · Accessibility permissions granted</div>
+            </div>
 
-<span class="c-comment"># Send a task</span>
-<span class="c-cmd">curl</span> http://localhost:3847/task \
-  <span class="c-flag">-d</span> <span class="c-string">'{"task": "Open Chrome and go to github.com"}'</span></code></pre>
-            </div>
-            <div style="margin-top: 24px; color: var(--text2); font-size: 0.92rem;">
-                <strong style="color: var(--text);">The setup script handles:</strong>
-                Node.js check · TightVNC download & install · npm install · TypeScript build · .env setup
-            </div>
-            <div style="margin-top: 12px; color: var(--text3); font-size: 0.85rem;">
-                Only need: Node.js 20+ · Windows · AI API key (Anthropic or OpenAI). Everything else is automated.
+            <!-- Linux -->
+            <div class="os-panel" data-os="linux">
+                <div class="code-section">
+                    <div class="code-header">
+                        <div class="code-dot r"></div>
+                        <div class="code-dot y"></div>
+                        <div class="code-dot g"></div>
+                        <span>Terminal</span>
+                    </div>
+                    <pre><code><span class="c-comment"># Clone & enter</span>
+<span class="c-cmd">git clone</span> <span class="c-string">https://github.com/AmrDab/clawd-cursor.git</span>
+<span class="c-cmd">cd</span> clawd-cursor
+
+<span class="c-comment"># Install deps & build</span>
+<span class="c-cmd">npm install</span> && <span class="c-cmd">npm run build</span>
+
+<span class="c-comment"># Install a VNC server</span>
+<span class="c-cmd">sudo apt install</span> <span class="c-string">x11vnc</span>   <span class="c-comment"># Debian/Ubuntu</span>
+<span class="c-cmd">sudo dnf install</span> <span class="c-string">tigervnc-server</span>   <span class="c-comment"># Fedora</span>
+
+<span class="c-comment"># Start VNC server</span>
+<span class="c-cmd">x11vnc</span> <span class="c-flag">-passwd</span> <span class="c-string">yourpass</span> <span class="c-flag">-display</span> :0 &
+
+<span class="c-comment"># Start the agent</span>
+<span class="c-cmd">npm start</span> <span class="c-flag">--</span> <span class="c-flag">--vnc-password</span> <span class="c-string">yourpass</span></code></pre>
+                </div>
+                <div class="os-note">
+                    <strong>Accessibility:</strong> Uses AT-SPI2 (Assistive Technology Service Provider Interface) for the fast path — same system Orca screen reader uses.
+                </div>
+                <div class="os-prereq">Requires: Node.js 20+ · x11vnc or tigervnc · X11 display · AI API key (optional)</div>
             </div>
         </section>
 
@@ -1149,6 +1269,17 @@
             p.style.animationDuration = (6 + Math.random() * 6) + 's';
             particlesContainer.appendChild(p);
         }
+
+        // OS tabs
+        document.querySelectorAll('.os-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const os = tab.dataset.os;
+                document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.os-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelector(`.os-panel[data-os="${os}"]`).classList.add('active');
+            });
+        });
 
         // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(a => {
