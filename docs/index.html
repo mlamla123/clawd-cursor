@@ -240,17 +240,10 @@
 
         /* Nav */
         nav {
-            position: fixed;
-            top: 0;
+            position: static;
             width: 100%;
             z-index: 100;
             background: transparent;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        nav.scrolled {
-            background: rgba(5,5,16,0.85);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
         }
         .nav-inner {
             max-width: 1200px;
@@ -361,7 +354,7 @@
 
         /* Hero */
         .hero {
-            padding: 180px 2rem 120px;
+            padding: 60px 2rem 120px;
             text-align: center;
             position: relative;
         }
@@ -1287,11 +1280,6 @@
         document.querySelectorAll('a, button, .feature-card, .compare-card, .pipeline-step, .stat').forEach(el => {
             el.addEventListener('mouseenter', () => cursor.classList.add('hovering'));
             el.addEventListener('mouseleave', () => cursor.classList.remove('hovering'));
-        });
-
-        // Nav scroll effect
-        window.addEventListener('scroll', () => {
-            document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 50);
         });
 
         // Scroll reveal
