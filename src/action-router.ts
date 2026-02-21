@@ -89,34 +89,34 @@ export class ActionRouter {
       return this.handleNavigateToUrl(urlMatch[1]);
     }
 
-    // 4. "click [element]" — try a11y lookup
-    const clickMatch = task.match(/^(?:click|press|tap|hit)\s+(?:the\s+)?(?:on\s+)?['"]?(.+?)['"]?\s*(?:button|link|tab|menu|item)?$/i);
+    // 4. "press [key]" — direct key press (BEFORE click to avoid "press enter" being caught as click)
+    const keyMatch = task.match(/^(?:press|hit)\s+(.+)$/i);
+    if (keyMatch) {
+      return this.handleKeyPress(keyMatch[1].trim());
+    }
+
+    // 5. "click [element]" — try a11y lookup (no "press"/"hit" — handled above)
+    const clickMatch = task.match(/^(?:click|tap)\s+(?:the\s+)?(?:on\s+)?['"]?(.+?)['"]?\s*(?:button|link|tab|menu|item)?$/i);
     if (clickMatch) {
       return this.handleClick(clickMatch[1].trim());
     }
 
-    // 5. "focus [window]" / "switch to [window]"
+    // 6. "focus [window]" / "switch to [window]"
     const focusMatch = task.match(/^(?:focus|switch to|bring up|activate|go to)\s+(.+)$/i);
     if (focusMatch) {
       return this.handleFocusWindow(focusMatch[1].trim());
     }
 
-    // 6. "close [window/app]"
+    // 7. "close [window/app]"
     const closeMatch = task.match(/^(?:close)\s+(.+)$/i);
     if (closeMatch) {
       return this.handleClose(closeMatch[1].trim());
     }
 
-    // 7. "minimize [window]" / "maximize [window]"
+    // 8. "minimize [window]" / "maximize [window]"
     const winCtrlMatch = task.match(/^(minimize|maximize)\s+(.+)$/i);
     if (winCtrlMatch) {
       return this.handleWindowControl(winCtrlMatch[1].toLowerCase(), winCtrlMatch[2].trim());
-    }
-
-    // 8. "press [key]" — direct key press
-    const keyMatch = task.match(/^(?:press|hit)\s+(.+)$/i);
-    if (keyMatch) {
-      return this.handleKeyPress(keyMatch[1].trim());
     }
 
     // 9. "select all" / "copy" / "paste" / "undo" / "redo" / "save"
