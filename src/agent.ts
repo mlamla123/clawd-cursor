@@ -109,10 +109,25 @@ export class Agent {
     let subtasks: string[];
     let llmCallCount = 0;
 
-    // When API key is available, ALWAYS use LLM decomposition — it understands
-    // user intent (e.g. "go to google docs" → "go to docs.google.com").
+    // When Computer Use is available (Anthropic), try the router first for
+    // the whole task. If router can't handle it, give the ENTIRE task to
+    // Computer Use — it takes a screenshot, plans with visual context, and
+    // executes. No blind text-only decomposition needed.
+    //
+    // When no Computer Use (OpenAI or other), use LLM text decomposition.
     // Local parser is ONLY for offline mode (no API key).
-    if (this.hasApiKey) {
+    if (this.computerUse) {
+      // Try router with the full task first (handles simple tasks instantly)
+      const localResult = this.parser.decomposeTask(task);
+      if (localResult) {
+        subtasks = localResult;
+        console.log(`   ⚡ Router-compatible task detected in ${Date.now() - decompositionStart}ms`);
+      } else {
+        // Task needs vision — give the whole thing to Computer Use
+        subtasks = [task];
+        console.log(`   🖥️  Complex task → will use Computer Use with full context`);
+      }
+    } else if (this.hasApiKey) {
       console.log(`   🧠 Using LLM to decompose task...`);
       subtasks = await this.brain.decomposeTask(task);
       llmCallCount = 1;
