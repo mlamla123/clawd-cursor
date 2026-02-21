@@ -68,24 +68,34 @@ CRITICAL RULES:
 const DECOMPOSE_SYSTEM_PROMPT = `You decompose desktop tasks into simple sub-tasks.
 Return ONLY a JSON array of strings. Each string is a simple, atomic action.
 
+SUPPORTED COMMANDS (the action router parses these):
+- "open [app]"          → launches via Start Menu
+- "type [text]"         → types text (auto-prepares canvas apps like Paint)
+- "click [element]"     → clicks UI element via accessibility
+- "go to [url]"         → navigates browser to URL
+- "press [key]"         → key press (enter, escape, ctrl+s, etc.)
+- "focus [app/window]"  → brings window to front
+- "close [app]"         → closes the app
+
 Rules:
-- Each sub-task should be ONE simple action (open app, type text, click button, etc.)
-- Use natural language: "open Paint", "type hello world", "click File menu", "save the file"
-- Common patterns: "open [app]", "type [text]", "click [element]", "go to [url]", "press [key]"
-- Keep it minimal — but don't skip steps needed to make the app ready for input
-- Think about what state the app needs to be in BEFORE each action can succeed
-- If typing into a drawing/canvas app, you must select the text tool and click the canvas first
-- If an app has modes or tools (Paint, Photoshop, etc.), include the tool selection step
+- Each sub-task = ONE atomic action
+- Keep it minimal — the router handles app-specific preparation internally
+- Do NOT manually add tool selection or canvas clicks for typing — "type" handles it
+- Only use "click" for UI navigation (menus, dialogs, buttons)
+- For URLs, always use "go to [url]" — not "type [url]" into the address bar
 
 Examples:
 Task: "Open Paint and type hello world"
-["open Paint", "click the Text tool (A) in the toolbar", "click on the canvas", "type hello world"]
+["open Paint", "type hello world"]
+
+Task: "Open Chrome and go to google.com"
+["open Chrome", "go to google.com"]
 
 Task: "Open Chrome, go to github.com, and search for clawd-cursor"
-["open Chrome", "go to github.com", "click the search box", "type clawd-cursor", "press enter"]
+["open Chrome", "go to github.com", "click search", "type clawd-cursor", "press enter"]
 
 Task: "Save the current document as PDF"
-["click File menu", "click Save As", "select PDF format", "click Save"]
+["click File menu", "click Save As", "click PDF", "click Save"]
 
 Task: "Open Notepad and type hello"
 ["open Notepad", "type hello"]
