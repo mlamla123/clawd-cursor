@@ -5,31 +5,56 @@
 <h1 align="center">Clawd Cursor</h1>
 
 <p align="center">
-  <strong>AI Desktop Agent that thinks like a screen reader</strong><br>
-  80% of tasks need zero LLM calls · 6x faster · 30x cheaper
+  <strong>AI Desktop Agent via VNC — Two Execution Modes</strong><br>
+  Native Computer Use for complex tasks · Action Router for instant simple ones
 </p>
 
 <p align="center">
-  <a href="https://clawdcursor.com">Website</a> · <a href="#quick-start">Quick Start</a> · <a href="#how-it-actually-works">How It Works</a> · <a href="#api-endpoints">API</a>
+  <a href="https://clawdcursor.com">Website</a> · <a href="#quick-start">Quick Start</a> · <a href="#how-it-works">How It Works</a> · <a href="#api-endpoints">API</a> · <a href="CHANGELOG.md">Changelog</a>
 </p>
+
+---
+
+## What's New in v0.2.0
+
+**Anthropic's Computer Use API is now the primary execution path.** The full task goes directly to Claude with native `computer_20250124` tools — no decomposition, no routing. Claude sees the screen, plans multi-step sequences, and executes them natively.
+
+The original Action Router (UI Automation, zero LLM) is still available as a fast, cheap path for simple tasks.
+
+| | Path A: Computer Use | Path B: Action Router |
+|---|---|---|
+| Provider | `--provider anthropic` | `--provider openai` / offline |
+| How it works | Claude sees screenshots, plans, and acts natively | Parse → subtasks → UI Automation → vision fallback |
+| Best for | Complex multi-app workflows | Simple single-action tasks |
+| Speed | ~90–190s (complex tasks) | ~2s (simple tasks) |
+| Reliability | Very high | Good for supported patterns |
+| Cost | Higher (API calls w/ screenshots) | Lower (1 text call or zero) |
+| Offline | No | Yes |
 
 ---
 
 ## What is this?
 
-Your AI connects to your desktop via VNC — like a remote user. But instead of staring at pixels, it reads the **UI Automation tree** (the same system screen readers use). Common tasks like opening apps, clicking buttons, and typing text happen instantly without any LLM calls.
+Your AI connects to your desktop via VNC — like a remote user. Depending on the provider, it either:
 
-When something unfamiliar comes up, it falls back to vision AI.
+**Path A — Computer Use API (Anthropic):** Claude receives the full task, takes screenshots of your desktop, and executes actions natively through the `computer_20250124` tool. It plans multi-step sequences, handles errors, and verifies results — all within a single conversation loop.
 
 ```
-User: "Open Chrome and go to github.com"
+User: "Open Chrome, go to Google Docs, write a paragraph about dogs"
 
-  1. Parse → decompose into subtasks (text LLM, fast)
-  2. Action Router → find Chrome in taskbar via UI Automation, click it (no LLM)
-  3. Type URL → VNC keystrokes (no LLM)
+  Claude sees the desktop → plans the sequence → executes step by step
+  14 API calls · 187s · All steps verified
+```
+
+**Path B — Decompose + Action Router (OpenAI/Offline):** The original approach. A text-only LLM call breaks the task into subtasks. The Action Router handles each one via Windows UI Automation (no screenshots, no vision). If the router can't handle a step, it falls back to vision.
+
+```
+User: "Open Notepad"
+
+  1. Parse → 1 subtask (text LLM, fast)
+  2. Action Router → find Notepad via UI Automation, launch it (no LLM)
   
-  Total LLM calls: 1 (just parsing)
-  Time: ~1.5s
+  Total LLM calls: 1 (just parsing) · ~2s
 ```
 
 ## Quick Start
@@ -44,11 +69,17 @@ Set up your `.env`:
 ```env
 AI_API_KEY=sk-ant-api03-...
 VNC_PASSWORD=yourpass
+AI_PROVIDER=anthropic
 ```
 
-Run it:
+Run with Computer Use (recommended):
 ```bash
-npm start -- --vnc-password yourpass
+npm start -- --vnc-password yourpass --provider anthropic
+```
+
+Run with Action Router (fast/offline):
+```bash
+npm start -- --vnc-password yourpass --provider openai
 ```
 
 Send a task:
@@ -66,55 +97,71 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 
 The setup script downloads TightVNC, installs deps, builds TypeScript, and creates `.env`.
 
-## How It Actually Works
+## How It Works
 
-### Two paths, fastest wins
+### Path A — Computer Use API
 
-**Path A — Action Router (80% of tasks, zero LLM)**
+When `--provider anthropic` is set, the entire task is sent to Claude along with the `computer_20250124` tool definition. Claude:
 
-Uses Windows UI Automation to handle common patterns directly:
+1. Takes a screenshot of the desktop
+2. Plans the next action (click, type, key press, scroll, drag)
+3. Executes via VNC
+4. Waits with adaptive delays (1000ms app launch, 800ms navigation, 100ms typing)
+5. Receives verification hint, screenshots again
+6. Repeats until the task is complete
 
-| Pattern | What happens |
-|---------|-------------|
-| `open [app]` | Find in taskbar/start menu → click via accessibility tree |
-| `type [text]` | VNC keystroke injection |
-| `click [button]` | Find element by name in UI tree → invoke |
-| `go to [url]` | Focus browser → Ctrl+L → type |
-| `focus [window]` | Win32 `SetForegroundWindow` |
+Key details:
+- **Display**: Scaled to 1280×720 for API compatibility
+- **Model**: `claude-sonnet-4-20250514`
+- **Header**: `anthropic-beta: computer-use-2025-01-24`
+- **System prompt**: Planning rules, ctrl+l for URLs, recovery strategies
+- **Mouse drag**: Smooth interpolation between points
 
-**Path B — Vision Fallback (complex stuff)**
+### Path B — Decompose + Action Router
 
-Screenshot → vision LLM → coordinates → VNC click. Only used when the router can't handle it.
+The original v0.1.0 pipeline:
 
-### Why it matters
-
-- **~500ms** for "Open Paint" (no LLM round-trip)
-- **80%** of common tasks use zero tokens
-- **UI Automation** is more precise than pixel-clicking
-- **Privacy** — common actions never leave your machine
+1. **Decompose** — Single text-only LLM call breaks the request into atomic subtasks
+2. **Action Router** — Queries Windows UI Automation tree. Finds elements by name, invokes them directly. Zero LLM calls.
+3. **Vision Fallback** — Only when the router can't handle a step: screenshot → vision LLM → coordinates → click
 
 ## Architecture
 
 ```
-┌──────────────────────────┐
-│     Your Desktop         │
-│   (VNC Server running)   │
-└──────────┬───────────────┘
-           │ VNC Protocol
-┌──────────┴───────────────┐
-│   Clawd Cursor Agent     │
-│                          │
-│   VNC Client (rfb2)      │
-│         ↓                │
-│   Action Router          │  ← UI Automation (no LLM)
-│         ↓                │
-│   AI Brain (fallback)    │  ← Vision LLM when needed
-│         ↓                │
-│   Safety Layer           │  ← Tiered confirmations
-│         ↓                │
-│   REST API / CLI         │
-└──────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│               Your Desktop (VNC Server)          │
+└──────────────────────┬───────────────────────────┘
+                       │ VNC Protocol
+┌──────────────────────┴───────────────────────────┐
+│              Clawd Cursor Agent                   │
+│                                                   │
+│  ┌─────────────┐          ┌────────────────────┐ │
+│  │  PATH A      │          │  PATH B            │ │
+│  │  Computer    │          │  Decompose +       │ │
+│  │  Use API     │          │  Action Router     │ │
+│  │              │          │                    │ │
+│  │  Claude sees │          │  Parse → subtasks  │ │
+│  │  screen,     │          │  UI Automation     │ │
+│  │  plans, acts │          │  (no LLM)          │ │
+│  │  natively    │          │  Vision fallback   │ │
+│  └──────┬───────┘          └────────┬───────────┘ │
+│         │ --provider anthropic      │ --provider  │
+│         │                           │ openai      │
+│         └───────────┬───────────────┘             │
+│                     ↓                             │
+│              Safety Layer                         │
+│              REST API / CLI                       │
+└───────────────────────────────────────────────────┘
 ```
+
+## Test Results (v0.2.0 — Computer Use)
+
+| Task | Time | API Calls | Result |
+|------|------|-----------|--------|
+| Open Chrome → Google Docs → write a paragraph | 187s | 14 | ✅ |
+| Open Chrome → GitHub profile → screenshot | 102s | — | ✅ |
+| Open Notepad → write haiku → save to desktop | ~180s | — | ✅ |
+| Open Paint → draw stick figure | ~90s | 16 | ✅ |
 
 ## API Endpoints
 
@@ -136,7 +183,7 @@ Screenshot → vision LLM → coordinates → VNC click. Only used when the rout
 --vnc-port <port>      VNC server port (default: 5900)
 --vnc-password <pass>  VNC password
 --port <port>          API port (default: 3847)
---provider <provider>  anthropic | openai
+--provider <provider>  anthropic (Computer Use) | openai (Action Router)
 --model <model>        Vision model
 --api-key <key>        AI provider API key
 ```
@@ -151,7 +198,7 @@ VNC_HOST=localhost
 VNC_PORT=5900
 VNC_PASSWORD=yourpass
 AI_PROVIDER=anthropic
-AI_MODEL=claude-opus-4
+AI_MODEL=claude-sonnet-4-20250514
 ```
 
 ## Safety Tiers
@@ -166,12 +213,12 @@ AI_MODEL=claude-opus-4
 
 - **Node.js 20+**
 - **VNC Server** — [TightVNC](https://www.tightvnc.com/) (Windows), built-in Screen Sharing (macOS), `x11vnc`/`tigervnc` (Linux)
-- **PowerShell** (Windows) — for UI Automation features
-- **AI API Key** — Anthropic or OpenAI (optional — works offline for common tasks)
+- **PowerShell** (Windows) — for UI Automation features (Path B)
+- **AI API Key** — Anthropic recommended for Computer Use (Path A). OpenAI optional for Path B. Works offline for common tasks via Action Router.
 
 ## Tech Stack
 
-TypeScript · Node.js · rfb2 (VNC) · sharp (screenshots) · Express + WebSocket · Windows UI Automation via PowerShell
+TypeScript · Node.js · rfb2 (VNC) · sharp (screenshots) · Express + WebSocket · Anthropic Computer Use API · Windows UI Automation via PowerShell
 
 ## License
 
