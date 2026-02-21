@@ -132,6 +132,9 @@ export class ComputerUseBrain {
   private llmWidth: number;
   private llmHeight: number;
   private scaleFactor: number;
+  private heldKeys: string[] = [];
+  private lastMouseX = 0;
+  private lastMouseY = 0;
 
   constructor(config: ClawdConfig, vnc: VNCClient, a11y: AccessibilityBridge, safety: SafetyLayer) {
     this.config = config;
@@ -143,9 +146,9 @@ export class ComputerUseBrain {
     this.screenWidth = screen.width;
     this.screenHeight = screen.height;
 
-    // Scale to ~1280px wide for token efficiency (same approach as existing)
-    this.scaleFactor = Math.max(1, Math.ceil(screen.width / 1280));
-    this.llmWidth = Math.round(screen.width / this.scaleFactor);
+    // Scale factor MUST match VNCClient.captureForLLM() — use floating point, not ceil
+    this.scaleFactor = screen.width > 1280 ? screen.width / 1280 : 1;
+    this.llmWidth = Math.min(screen.width, 1280);
     this.llmHeight = Math.round(screen.height / this.scaleFactor);
 
     console.log(`   🖥️  Computer Use: declaring ${this.llmWidth}x${this.llmHeight} display (scale ${this.scaleFactor}x from ${this.screenWidth}x${this.screenHeight})`);
@@ -185,6 +188,9 @@ export class ComputerUseBrain {
       role: 'user',
       content: taskMessage,
     });
+
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 5;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       llmCalls++;
@@ -280,6 +286,13 @@ export class ComputerUseBrain {
         } else {
           // Execute the action
           const result = await this.executeAction(toolUse);
+          // Release any held modifier keys after non-hold actions
+          if (toolUse.input.action !== 'hold_key' && this.heldKeys.length > 0) {
+            for (const hk of this.heldKeys) {
+              await this.vnc.keyUp(hk);
+            }
+            this.heldKeys = [];
+          }
           console.log(`   ${result.error ? '❌' : '✅'} ${result.description}`);
 
           steps.push({
@@ -289,6 +302,17 @@ export class ComputerUseBrain {
             error: result.error,
             timestamp: Date.now(),
           });
+
+          // Track consecutive errors for bail-out
+          if (result.error) {
+            consecutiveErrors++;
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              console.log(`   ❌ ${MAX_CONSECUTIVE_ERRORS} consecutive errors — aborting task`);
+              return { success: false, steps, llmCalls };
+            }
+          } else {
+            consecutiveErrors = 0;
+          }
 
           if (result.error) {
             // Always send full context on error so Claude can recover
@@ -359,6 +383,9 @@ export class ComputerUseBrain {
     const MAX_RETRIES = 2;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
+
       try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -381,8 +408,10 @@ export class ComputerUseBrain {
             }],
             messages,
           }),
+          signal: controller.signal,
         });
 
+        clearTimeout(timeout);
         const data = await response.json() as any;
 
         if (data.error) {
@@ -397,6 +426,7 @@ export class ComputerUseBrain {
 
         return data;
       } catch (err) {
+        clearTimeout(timeout);
         console.warn(`   ⚠️ API call failed (attempt ${attempt + 1}): ${err}`);
         if (attempt < MAX_RETRIES) {
           await this.delay(1000 * (attempt + 1));
@@ -414,11 +444,19 @@ export class ComputerUseBrain {
   private async executeAction(toolUse: ToolUseBlock): Promise<{ description: string; error?: string }> {
     const { action, coordinate, start_coordinate, text, key } = toolUse.input;
 
+    // Null guard for actions that require coordinates
+    const needsCoords = ['left_click', 'right_click', 'double_click', 'triple_click',
+      'middle_click', 'mouse_move', 'left_mouse_down', 'left_mouse_up'];
+    if (needsCoords.includes(action) && !coordinate) {
+      return { description: `${action}: missing coordinate`, error: 'coordinate is required for this action' };
+    }
+
     try {
       switch (action) {
         case 'left_click': {
           const [x, y] = this.scale(coordinate!);
           await this.vnc.mouseClick(x, y);
+          this.lastMouseX = x; this.lastMouseY = y;
           return { description: `Click at (${x}, ${y})` };
         }
 
@@ -459,8 +497,11 @@ export class ComputerUseBrain {
         }
 
         case 'left_click_drag': {
-          const [sx, sy] = this.scale(start_coordinate || coordinate!);
-          const [ex, ey] = this.scale(coordinate!);
+          if (!start_coordinate || !coordinate) {
+            return { description: 'Drag: missing coordinates', error: 'start_coordinate and coordinate are both required for drag' };
+          }
+          const [sx, sy] = this.scale(start_coordinate);
+          const [ex, ey] = this.scale(coordinate);
           await this.vnc.mouseDrag(sx, sy, ex, ey);
           return { description: `Drag (${sx},${sy}) → (${ex},${ey})` };
         }
@@ -492,11 +533,16 @@ export class ComputerUseBrain {
         }
 
         case 'hold_key': {
-          // Hold a modifier key — Claude will send the follow-up action next
+          // Hold a modifier key down — released after next non-hold action
           const holdKey = key || text || '';
           const vncKey = this.mapKeyName(holdKey);
-          await this.vnc.keyPress(vncKey);
-          return { description: `Hold key: ${holdKey}` };
+          await this.vnc.keyDown(vncKey);
+          this.heldKeys.push(vncKey);
+          return { description: `Holding key: ${holdKey}` };
+        }
+
+        case 'cursor_position': {
+          return { description: `Cursor at (${this.lastMouseX}, ${this.lastMouseY})` };
         }
 
         case 'scroll': {
@@ -581,8 +627,8 @@ export class ComputerUseBrain {
   /** Scale LLM coordinates to real screen coordinates */
   private scale(coords: [number, number]): [number, number] {
     return [
-      Math.round(Math.min(Math.max(coords[0], 0), this.llmWidth) * this.scaleFactor),
-      Math.round(Math.min(Math.max(coords[1], 0), this.llmHeight) * this.scaleFactor),
+      Math.min(Math.round(Math.min(Math.max(coords[0], 0), this.llmWidth - 1) * this.scaleFactor), this.screenWidth - 1),
+      Math.min(Math.round(Math.min(Math.max(coords[1], 0), this.llmHeight - 1) * this.scaleFactor), this.screenHeight - 1),
     ];
   }
 

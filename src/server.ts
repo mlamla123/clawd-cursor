@@ -37,6 +37,8 @@ export function createServer(agent: Agent, config: ClawdConfig): express.Express
     // Execute async — respond immediately
     agent.executeTask(task).then(result => {
       console.log(`\n📋 Task result:`, JSON.stringify(result, null, 2));
+    }).catch(err => {
+      console.error(`\n❌ Task execution failed:`, err);
     });
 
     res.json({ accepted: true, task });
@@ -76,7 +78,7 @@ export function createServer(agent: Agent, config: ClawdConfig): express.Express
 
   // Health check
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok', version: '0.1.0' });
+    res.json({ status: 'ok', version: '0.2.0' });
   });
 
   return app;

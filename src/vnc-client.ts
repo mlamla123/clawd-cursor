@@ -264,13 +264,25 @@ export class VNCClient extends EventEmitter {
 
   async typeText(text: string): Promise<void> {
     if (!this.client) throw new Error('Not connected');
-    console.log(`   ⌨️  Typing: "${text}"`);
-    for (const char of text) {
-      const code = char.charCodeAt(0);
-      this.client.keyEvent(code, true);
-      await this.delay(30);
-      this.client.keyEvent(code, false);
-      await this.delay(30);
+    console.log(`   ⌨️  Typing: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`);
+
+    if (text.length <= 10) {
+      // Short text: normal speed for reliability in UI interactions
+      for (const char of text) {
+        const code = char.charCodeAt(0);
+        this.client.keyEvent(code, true);
+        await this.delay(20);
+        this.client.keyEvent(code, false);
+        await this.delay(20);
+      }
+    } else {
+      // Long text: burst mode — VNC servers handle this fine
+      for (const char of text) {
+        const code = char.charCodeAt(0);
+        this.client.keyEvent(code, true);
+        this.client.keyEvent(code, false);
+        await this.delay(5);
+      }
     }
   }
 
@@ -312,13 +324,7 @@ export class VNCClient extends EventEmitter {
         await this.mouseScroll(action.x, action.y, action.scrollDelta || 3);
         break;
       case 'drag':
-        await this.mouseMove(action.x, action.y);
-        if (!this.client) throw new Error('Not connected');
-        this.client.pointerEvent(action.x, action.y, 1);
-        await this.delay(100);
-        this.client.pointerEvent(action.endX || action.x, action.endY || action.y, 1);
-        await this.delay(50);
-        this.client.pointerEvent(action.endX || action.x, action.endY || action.y, 0);
+        await this.mouseDrag(action.x, action.y, action.endX || action.x, action.endY || action.y);
         break;
     }
   }
@@ -336,6 +342,30 @@ export class VNCClient extends EventEmitter {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  // ─── Low-level key control (for Computer Use API hold_key) ────────
+
+  async keyDown(keyCombo: string): Promise<void> {
+    if (!this.client) throw new Error('Not connected');
+    console.log(`   ⌨️  Key down: ${keyCombo}`);
+    const parts = keyCombo.split('+').map(k => k.trim());
+    for (const k of parts) {
+      const code = KEY_MAP[k] || k.charCodeAt(0);
+      this.client.keyEvent(code, true);
+      await this.delay(20);
+    }
+  }
+
+  async keyUp(keyCombo: string): Promise<void> {
+    if (!this.client) throw new Error('Not connected');
+    console.log(`   ⌨️  Key up: ${keyCombo}`);
+    const parts = keyCombo.split('+').map(k => k.trim());
+    for (const k of [...parts].reverse()) {
+      const code = KEY_MAP[k] || k.charCodeAt(0);
+      this.client.keyEvent(code, false);
+      await this.delay(20);
+    }
   }
 
   // ─── Low-level pointer control (for Computer Use API) ────────────
@@ -376,8 +406,13 @@ export class VNCClient extends EventEmitter {
 
   disconnect(): void {
     if (this.client) {
+      this.client.removeAllListeners();
       this.client.end();
+      this.client = null;
       this.connected = false;
+      this.fullFrameBuffer = null;
+      this.screenWidth = 0;
+      this.screenHeight = 0;
     }
   }
 

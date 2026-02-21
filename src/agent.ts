@@ -79,18 +79,29 @@ export class Agent {
   }
 
   async executeTask(task: string): Promise<TaskResult> {
+    // Atomic concurrency guard — prevent TOCTOU race on simultaneous /task requests
+    if (this.state.status !== 'idle') {
+      return {
+        success: false,
+        steps: [{ action: 'error', description: 'Agent is busy', success: false, timestamp: Date.now() }],
+        duration: 0,
+      };
+    }
+
     this.aborted = false;
     const startTime = Date.now();
 
     console.log(`\n🐾 Starting task: ${task}`);
 
-    // Setup debug directory
+    // Setup debug directory (async to avoid blocking event loop)
     const debugDir = path.join(process.cwd(), 'debug');
-    if (fs.existsSync(debugDir)) {
-      for (const f of fs.readdirSync(debugDir)) fs.unlinkSync(path.join(debugDir, f));
-    } else {
-      fs.mkdirSync(debugDir);
-    }
+    try {
+      if (fs.existsSync(debugDir)) {
+        for (const f of fs.readdirSync(debugDir)) fs.unlinkSync(path.join(debugDir, f));
+      } else {
+        fs.mkdirSync(debugDir);
+      }
+    } catch { /* non-fatal */ }
 
     this.state = {
       status: 'thinking',
@@ -132,19 +143,28 @@ export class Agent {
     console.log(`   🖥️  Using Computer Use API (screenshot-first)\n`);
 
     this.state.status = 'acting';
-    const cuResult = await this.computerUse!.executeSubtask(task, debugDir, 0);
+    try {
+      const cuResult = await this.computerUse!.executeSubtask(task, debugDir, 0);
 
-    this.state.status = 'idle';
-    this.state.currentTask = undefined;
+      const result: TaskResult = {
+        success: cuResult.success,
+        steps: cuResult.steps,
+        duration: Date.now() - startTime,
+      };
 
-    const result: TaskResult = {
-      success: cuResult.success,
-      steps: cuResult.steps,
-      duration: Date.now() - startTime,
-    };
-
-    console.log(`\n⏱️  Task took ${(result.duration / 1000).toFixed(1)}s with ${cuResult.steps.length} steps (${cuResult.llmCalls} LLM call(s))`);
-    return result;
+      console.log(`\n⏱️  Task took ${(result.duration / 1000).toFixed(1)}s with ${cuResult.steps.length} steps (${cuResult.llmCalls} LLM call(s))`);
+      return result;
+    } catch (err) {
+      console.error(`\n❌ Computer Use crashed:`, err);
+      return {
+        success: false,
+        steps: [{ action: 'error', description: `Computer Use crashed: ${err}`, success: false, timestamp: Date.now() }],
+        duration: Date.now() - startTime,
+      };
+    } finally {
+      this.state.status = 'idle';
+      this.state.currentTask = undefined;
+    }
   }
 
   /**
@@ -160,6 +180,8 @@ export class Agent {
     let llmCallCount = 0;
 
     console.log(`   Using decompose → route → LLM fallback pipeline\n`);
+
+    try {
 
     // ─── Decompose ───────────────────────────────────────────────
     console.log(`📋 Decomposing task...`);
@@ -232,10 +254,6 @@ export class Agent {
       }
     }
 
-    this.state.status = 'idle';
-    this.state.currentTask = undefined;
-    this.brain.resetConversation();
-
     const result: TaskResult = {
       success: steps.length > 0 && steps.some(s => s.success),
       steps,
@@ -244,6 +262,19 @@ export class Agent {
 
     console.log(`\n⏱️  Task took ${(result.duration / 1000).toFixed(1)}s with ${steps.length} steps (${llmCallCount} LLM call(s))`);
     return result;
+
+    } catch (err) {
+      console.error(`\n❌ Decompose+Route crashed:`, err);
+      return {
+        success: false,
+        steps: [...steps, { action: 'error', description: `Pipeline crashed: ${err}`, success: false, timestamp: Date.now() }],
+        duration: Date.now() - startTime,
+      };
+    } finally {
+      this.state.status = 'idle';
+      this.state.currentTask = undefined;
+      this.brain.resetConversation();
+    }
   }
 
   /**
