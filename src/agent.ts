@@ -117,16 +117,11 @@ export class Agent {
     // When no Computer Use (OpenAI or other), use LLM text decomposition.
     // Local parser is ONLY for offline mode (no API key).
     if (this.computerUse) {
-      // Try router with the full task first (handles simple tasks instantly)
-      const localResult = this.parser.decomposeTask(task);
-      if (localResult) {
-        subtasks = localResult;
-        console.log(`   ⚡ Router-compatible task detected in ${Date.now() - decompositionStart}ms`);
-      } else {
-        // Task needs vision — give the whole thing to Computer Use
-        subtasks = [task];
-        console.log(`   🖥️  Complex task → will use Computer Use with full context`);
-      }
+      // Computer Use: give the FULL task — Claude screenshots first,
+      // sees the screen, plans and executes with visual context.
+      // No blind text parsing that misinterprets user intent.
+      subtasks = [task];
+      console.log(`   🖥️  Full task → Computer Use (screenshot-first)`);
     } else if (this.hasApiKey) {
       console.log(`   🧠 Using LLM to decompose task...`);
       subtasks = await this.brain.decomposeTask(task);
