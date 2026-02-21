@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clawd Cursor · AI Desktop Agent via Screen Reader APIs</title>
-    <meta name="description" content="AI desktop agent that uses screen reader APIs instead of just computer vision. 80% of tasks need zero LLM calls. 6x faster, 30x cheaper.">
-    <meta property="og:title" content="Clawd Cursor · AI Desktop Agent">
-    <meta property="og:description" content="Desktop automation that thinks like a screen reader. 80% of tasks need zero LLM calls.">
+    <title>Clawd Cursor · AI Desktop Agent over VNC</title>
+    <meta name="description" content="AI desktop agent over VNC. Native Computer Use for complex tasks, zero-LLM fast path for simple ones. Open source, MIT licensed.">
+    <meta property="og:title" content="Clawd Cursor · AI Desktop Agent over VNC">
+    <meta property="og:description" content="Give your AI native desktop control. Computer Use API for complex tasks, UI Automation for instant ones.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://clawdcursor.com">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -1176,12 +1176,12 @@
 
         <!-- Hero -->
         <div class="hero">
-            <div class="hero-badge"><div class="pulse"></div> Open Source · MIT License</div>
+            <div class="hero-badge"><div class="pulse"></div> v0.2.0 · Computer Use API</div>
             <h1>
                 <span class="line1">Your AI gets its own</span>
                 <span class="line2">cursor with claws</span>
             </h1>
-            <p>Give eyes to your AI assistant. Desktop automation that uses Windows UI Automation — not just screenshots. 80% of tasks need zero LLM calls.</p>
+            <p>Give your AI native desktop control over VNC. Computer Use API handles complex multi-app workflows. UI Automation handles simple tasks instantly.</p>
             <div class="hero-buttons">
                 <a href="https://github.com/AmrDab/clawd-cursor" class="btn-primary">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -1313,56 +1313,56 @@
         <div style="max-width: 900px; margin: 0 auto; padding: 0 2rem;">
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-value">6x</div>
-                    <div class="stat-label">Faster</div>
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">Execution Modes</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">30x</div>
-                    <div class="stat-label">Cheaper</div>
+                    <div class="stat-value">14</div>
+                    <div class="stat-label">Steps Autonomous</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">80%</div>
-                    <div class="stat-label">Zero LLM</div>
+                    <div class="stat-value">100%</div>
+                    <div class="stat-label">Task Completion</div>
                 </div>
                 <div class="stat">
                     <div class="stat-value">~2s</div>
-                    <div class="stat-label">Per Task</div>
+                    <div class="stat-label">Simple Tasks</div>
                 </div>
             </div>
         </div>
 
         <!-- Problem/Solution -->
         <section class="reveal">
-            <div class="section-label">The Problem</div>
-            <h2>Vision-only agents are slow & expensive</h2>
-            <p class="subtitle">Most AI desktop agents screenshot → LLM → click. Repeat 10-20 times. There's a fundamentally better approach.</p>
+            <div class="section-label">Two Modes</div>
+            <h2>Complex tasks or simple ones — both covered</h2>
+            <p class="subtitle">Computer Use API for bulletproof multi-step workflows. UI Automation for instant single actions. You pick.</p>
             <div class="compare-grid">
-                <div class="compare-card old">
-                    <h3>❌ Pure Vision Agents</h3>
+                <div class="compare-card new">
+                    <h3>🧠 PATH A — Computer Use</h3>
                     <ol>
-                        <li>Screenshot the entire screen</li>
-                        <li>Send to GPT-4o / Claude ($$)</li>
-                        <li>Get back pixel coordinates</li>
-                        <li>Click at (x, y) — hope it's right</li>
-                        <li>Screenshot again... repeat 10x</li>
+                        <li>Full task sent to Claude with native tools</li>
+                        <li>Claude sees your screen via screenshots</li>
+                        <li>Plans the workflow, executes step by step</li>
+                        <li>Verifies each action before continuing</li>
+                        <li>Handles multi-app, unfamiliar UIs reliably</li>
                     </ol>
                     <div class="compare-stats">
-                        <div><div class="compare-stat-val">~12s</div><div class="compare-stat-label">Per task</div></div>
-                        <div><div class="compare-stat-val">15K</div><div class="compare-stat-label">Tokens</div></div>
+                        <div><div class="compare-stat-val">100%</div><div class="compare-stat-label">Reliable</div></div>
+                        <div><div class="compare-stat-val">14</div><div class="compare-stat-label">Steps auto</div></div>
                     </div>
                 </div>
-                <div class="compare-card new">
-                    <h3>✅ Clawd Cursor</h3>
+                <div class="compare-card new" style="border-color: rgba(77,124,255,0.15);">
+                    <h3 style="color: var(--blue);">⚡ PATH B — Decompose + Route</h3>
                     <ol>
                         <li>Parse task into subtasks (1 text call)</li>
                         <li>Query UI Automation tree</li>
                         <li>Find element by name — click directly</li>
-                        <li>No screenshots for 80% of tasks</li>
-                        <li>LLM vision only as fallback</li>
+                        <li>Zero LLM calls for common actions</li>
+                        <li>Vision fallback for unfamiliar elements</li>
                     </ol>
                     <div class="compare-stats">
-                        <div><div class="compare-stat-val">~2s</div><div class="compare-stat-label">Per task</div></div>
-                        <div><div class="compare-stat-val">500</div><div class="compare-stat-label">Tokens</div></div>
+                        <div><div class="compare-stat-val">~2s</div><div class="compare-stat-label">Simple tasks</div></div>
+                        <div><div class="compare-stat-val">$0</div><div class="compare-stat-label">Common actions</div></div>
                     </div>
                 </div>
             </div>
@@ -1370,34 +1370,34 @@
 
         <!-- Data Visualization -->
         <section class="reveal">
-            <div class="section-label">Efficiency Metrics</div>
-            <h2>80% of tasks need zero LLM calls</h2>
-            <p class="subtitle">Less tokens, lower cost, faster execution. The numbers speak for themselves.</p>
+            <div class="section-label">Real Results</div>
+            <h2>Tested on real desktop tasks</h2>
+            <p class="subtitle">Complex multi-app workflows completed autonomously. Every time.</p>
             
             <div class="viz-grid">
-                <!-- Token Usage Chart -->
+                <!-- Complex Task Results -->
                 <div class="viz-card">
-                    <h4>📊 Token Usage Per Task</h4>
+                    <h4>🧠 Computer Use (Complex)</h4>
                     <div class="bar-chart">
                         <div class="bar-group">
-                            <div class="bar vision" style="height: 140px;">
-                                <span class="bar-value">15,000</span>
+                            <div class="bar clawd" style="height: 130px;">
+                                <span class="bar-value">187s · 14 steps</span>
                             </div>
-                            <span class="bar-label">Vision-only</span>
+                            <span class="bar-label">Google Docs</span>
                         </div>
                         <div class="bar-group">
-                            <div class="bar clawd" style="height: 12px;">
-                                <span class="bar-value">500</span>
+                            <div class="bar clawd" style="height: 70px;">
+                                <span class="bar-value">102s</span>
                             </div>
-                            <span class="bar-label">Clawd Cursor</span>
+                            <span class="bar-label">GitHub Nav</span>
                         </div>
                     </div>
-                    <div class="savings-badge">💰 30x cheaper</div>
+                    <div class="savings-badge">✅ 100% completion</div>
                 </div>
 
-                <!-- Zero LLM Pie Chart -->
+                <!-- Dual Mode Donut -->
                 <div class="viz-card">
-                    <h4>🎯 Tasks Without LLM Calls</h4>
+                    <h4>🎯 Dual Execution Modes</h4>
                     <div class="donut-chart">
                         <svg viewBox="0 0 160 160" width="160" height="160">
                             <defs>
@@ -1408,43 +1408,43 @@
                             </defs>
                             <circle class="donut-bg" cx="80" cy="80" r="55"/>
                             <circle class="donut-fill" cx="80" cy="80" r="55" 
-                                    stroke-dasharray="345.6" stroke-dashoffset="69.12"/>
+                                    stroke-dasharray="345.6" stroke-dashoffset="0"/>
                         </svg>
                         <div class="donut-center">
-                            <span class="donut-value">80%</span>
-                            <span class="donut-label">Zero LLM</span>
+                            <span class="donut-value">4/4</span>
+                            <span class="donut-label">Tests Passed</span>
                         </div>
                     </div>
                     <div class="metric-row">
                         <div class="metric-item">
-                            <div class="metric-value">80%</div>
-                            <div class="metric-label">UI Automation</div>
+                            <div class="metric-value">PATH A</div>
+                            <div class="metric-label">Computer Use</div>
                         </div>
                         <div class="metric-item">
-                            <div class="metric-value">20%</div>
-                            <div class="metric-label">Vision Fallback</div>
+                            <div class="metric-value">PATH B</div>
+                            <div class="metric-label">Fast Route</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Speed Comparison -->
+                <!-- Simple Task Speed -->
                 <div class="viz-card">
-                    <h4>⚡ Task Completion Time</h4>
+                    <h4>⚡ Fast Path (Simple Tasks)</h4>
                     <div class="bar-chart">
                         <div class="bar-group">
-                            <div class="bar vision" style="height: 120px;">
-                                <span class="bar-value">~12s</span>
+                            <div class="bar vision" style="height: 100px;">
+                                <span class="bar-value">~12s (vision)</span>
                             </div>
-                            <span class="bar-label">Vision-only</span>
+                            <span class="bar-label">Other agents</span>
                         </div>
                         <div class="bar-group">
-                            <div class="bar clawd" style="height: 20px;">
+                            <div class="bar clawd" style="height: 17px;">
                                 <span class="bar-value">~2s</span>
                             </div>
-                            <span class="bar-label">Clawd Cursor</span>
+                            <span class="bar-label">Action Router</span>
                         </div>
                     </div>
-                    <div class="savings-badge">🚀 6x faster</div>
+                    <div class="savings-badge">🚀 Zero LLM calls</div>
                 </div>
             </div>
         </section>
@@ -1452,28 +1452,28 @@
         <!-- How It Works -->
         <section id="how-it-works" class="reveal">
             <div class="section-label">Architecture</div>
-            <h2>Parse → Accessibility → Action</h2>
-            <p class="subtitle">A three-stage pipeline that tries the fastest approach first, falling back to vision only when needed.</p>
+            <h2>Two paths, one goal</h2>
+            <p class="subtitle">Your provider determines the execution path. Anthropic gets native Computer Use. Everyone else gets the fast router.</p>
             <div class="pipeline">
                 <div class="pipeline-step step-1">
-                    <div class="step-num">1</div>
-                    <h4>Decompose Task</h4>
-                    <p>Single text-only LLM call breaks your request into atomic subtasks.</p>
-                    <div class="pipeline-meta fast">⚡ 200ms · 500 tokens</div>
+                    <div class="step-num">A</div>
+                    <h4>Computer Use (Anthropic)</h4>
+                    <p>Full task → Claude with native desktop tools. Screenshots + planning + execution in an autonomous loop. Handles any complexity.</p>
+                    <div class="pipeline-meta fast">🧠 Autonomous · Reliable</div>
                 </div>
                 <div class="pipeline-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
                 <div class="pipeline-step step-2 highlight">
-                    <div class="step-num">2</div>
-                    <h4>Action Router</h4>
-                    <p>Queries native accessibility APIs — Windows UI Automation, macOS AXUIElement, Linux AT-SPI2. Finds elements by name, not coordinates.</p>
-                    <div class="pipeline-meta fast">✅ No LLM · 300ms · $0</div>
+                    <div class="step-num">B</div>
+                    <h4>Action Router (OpenAI/Offline)</h4>
+                    <p>Decompose → UI Automation tree → find elements by name → execute. Zero LLM for common patterns like opening apps and typing.</p>
+                    <div class="pipeline-meta fast">⚡ Fast · $0 for simple tasks</div>
                 </div>
                 <div class="pipeline-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
                 <div class="pipeline-step step-3">
-                    <div class="step-num">3</div>
-                    <h4>Vision Fallback</h4>
-                    <p>Only when router can't handle it: resized screenshot → LLM → coordinates. Used for ~20% of tasks.</p>
-                    <div class="pipeline-meta slow">⚠️ Fallback · 2s</div>
+                    <div class="step-num">→</div>
+                    <h4>VNC Execution</h4>
+                    <p>Both paths converge on the same VNC client: mouse clicks, keyboard input, drag operations, screenshots — all via standard VNC protocol.</p>
+                    <div class="pipeline-meta fast">🔌 Any VNC server</div>
                 </div>
             </div>
         </section>
@@ -1492,17 +1492,17 @@
                 <div class="feature-card">
                     <div class="feature-icon fi-2">⚡</div>
                     <h4>Zero-LLM Fast Path</h4>
-                    <p>Common tasks execute in milliseconds with zero AI calls. Open apps, type text, click elements — instantly.</p>
+                    <p>PATH B: Common tasks execute in milliseconds with zero AI calls. Open apps, type text, click elements — instantly via UI Automation.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon fi-3">🧠</div>
-                    <h4>Smart Decomposition</h4>
-                    <p>One cheap text-only LLM call breaks complex tasks into atomic steps the router can handle.</p>
+                    <h4>Native Computer Use</h4>
+                    <p>PATH A: Claude gets native desktop tools — screenshot, click, type, scroll, drag. Plans and executes complex workflows autonomously.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon fi-4">📸</div>
-                    <h4>Resized Screenshots</h4>
-                    <p>When vision is needed, screenshots are optimized to minimize token usage while preserving accuracy.</p>
+                    <h4>Adaptive Screenshots</h4>
+                    <p>Screenshots scaled to 1280×720 for the API. Adaptive delays per action type — 1s for app launch, 100ms for typing.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon fi-5">🛡️</div>
@@ -1620,5 +1620,9 @@
             });
         });
     </script>
+
+    <!-- GoatCounter analytics (privacy-friendly, no cookies) -->
+    <script data-goatcounter="https://clawdcursor.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>

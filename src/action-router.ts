@@ -299,9 +299,6 @@ export class ActionRouter {
 
   private async handleType(text: string): Promise<RouteResult> {
     try {
-      // Prepare the active window for text input if needed
-      // (e.g. Paint needs text tool selected + canvas click before typing)
-      await this.prepareForTyping();
       await this.vnc.typeText(text);
       return {
         handled: true,
@@ -313,69 +310,6 @@ export class ActionRouter {
         description: `Failed to type text: ${err}`,
         error: String(err),
       };
-    }
-  }
-
-  /**
-   * Prepare the active window for text input.
-   * Detects app-specific requirements (e.g. Paint needs text tool + canvas click).
-   * No-op for apps that accept typing directly (Notepad, browsers, etc.)
-   */
-  private async prepareForTyping(): Promise<void> {
-    try {
-      const windows = await this.a11y.getWindows();
-      const foreground = windows.find(w => !w.isMinimized);
-      if (!foreground) return;
-
-      const proc = foreground.processName.toLowerCase();
-      const title = foreground.title.toLowerCase();
-
-      // Paint: activate text tool, then click canvas to create a text box
-      if (proc === 'mspaint' || title.includes('paint')) {
-        console.log(`   🎨 Paint detected — preparing for text input...`);
-
-        let textToolActivated = false;
-
-        // Strategy 1: a11y to find and click the Text tool
-        try {
-          // Try exact name matches Paint uses
-          for (const name of ['Text', 'Text tool', 'A']) {
-            const elements = await this.a11y.findElement({ name });
-            if (elements && elements.length > 0 && elements[0].bounds) {
-              const b = elements[0].bounds;
-              const cx = b.x + Math.floor(b.width / 2);
-              const cy = b.y + Math.floor(b.height / 2);
-              await this.vnc.mouseClick(cx, cy);
-              console.log(`   🎨 Clicked "${name}" via a11y at (${cx}, ${cy})`);
-              textToolActivated = true;
-              await this.delay(400);
-              break;
-            }
-          }
-        } catch {
-          // a11y not available, fall through
-        }
-
-        // Strategy 2: keyboard shortcut (Home tab → Text tool)
-        if (!textToolActivated) {
-          console.log(`   🎨 a11y fallback: using keyboard shortcut Alt+H, T...`);
-          await this.vnc.keyPress('alt+h');
-          await this.delay(300);
-          await this.vnc.keyPress('t');
-          await this.delay(400);
-          console.log(`   🎨 Sent Alt+H, T for text tool`);
-        }
-
-        // Click center of canvas to create text input area
-        const screen = this.vnc.getScreenSize();
-        const canvasX = Math.floor(screen.width / 2);
-        const canvasY = Math.floor(screen.height / 2) + 100; // below toolbar
-        await this.vnc.mouseClick(canvasX, canvasY);
-        console.log(`   🎨 Clicked canvas at (${canvasX}, ${canvasY}) to create text box`);
-        await this.delay(500);
-      }
-    } catch (err) {
-      console.log(`   ⚠️ prepareForTyping error (non-fatal): ${err}`);
     }
   }
 

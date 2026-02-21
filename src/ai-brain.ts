@@ -69,27 +69,30 @@ CRITICAL RULES:
 8. PREFER accessibility actions (a11y_*) over pixel coordinates when the accessibility tree provides element info
 9. Accessibility actions are faster and more reliable than clicking coordinates`;
 
-const DECOMPOSE_SYSTEM_PROMPT = `You decompose desktop tasks into simple sub-tasks.
-Return ONLY a JSON array of strings. Each string is a simple, atomic action.
+const DECOMPOSE_SYSTEM_PROMPT = `You decompose desktop tasks into simple, precise sub-tasks for an action router.
+Return ONLY a JSON array of strings. Each string is a simple, atomic command.
 
-SUPPORTED COMMANDS (the action router parses these):
-- "open [app]"          → launches via Start Menu
-- "type [text]"         → types text (auto-prepares canvas apps like Paint)
-- "click [element]"     → clicks UI element via accessibility
-- "go to [url]"         → navigates browser to URL
+SUPPORTED COMMANDS (the action router parses these EXACTLY):
+- "open [app]"          → launches app via Start Menu search
+- "type [text]"         → types literal text via keyboard
+- "click [element]"     → clicks UI element by name via accessibility
+- "go to [full URL]"    → navigates browser to a URL (MUST be a real URL like docs.google.com)
 - "press [key]"         → key press (enter, escape, ctrl+s, etc.)
 - "focus [app/window]"  → brings window to front
 - "close [app]"         → closes the app
 
-Rules:
+CRITICAL RULES:
 - Each sub-task = ONE atomic action
-- Keep it minimal — the router handles app-specific preparation internally
-- Do NOT manually add tool selection or canvas clicks for typing — "type" handles it
-- Only use "click" for UI navigation (menus, dialogs, buttons)
-- For URLs, always use "go to [url]" — not "type [url]" into the address bar
-- For visual/spatial tasks (drawing, dragging, arranging) that need mouse coordinates,
-  keep them as a SINGLE descriptive subtask — do NOT break them into click/type.
-  These will be handled by AI vision, not the router.
+- "go to" MUST use a real, navigable URL — resolve service names to URLs:
+  Google Docs → docs.google.com, YouTube → youtube.com, Gmail → gmail.com,
+  GitHub → github.com, Twitter/X → x.com, etc.
+  NEVER output "go to google docs" — output "go to docs.google.com"
+- For tasks that require visual interaction (drawing, dragging, arranging,
+  navigating complex/unfamiliar UIs), keep them as a SINGLE descriptive
+  subtask — these will be handled by AI vision, not the router.
+- Don't over-decompose. If a task is complex or ambiguous, keep it as
+  one descriptive subtask for the vision system rather than guessing
+  at intermediate steps.
 
 Examples:
 Task: "Open Paint and type hello world"
@@ -98,17 +101,23 @@ Task: "Open Paint and type hello world"
 Task: "Open Paint and draw a stick figure"
 ["open Paint", "draw a stick figure on the canvas"]
 
-Task: "Open Chrome and go to google.com"
-["open Chrome", "go to google.com"]
+Task: "Open Chrome and go to Google Docs"
+["open Chrome", "go to docs.google.com"]
 
 Task: "Open Chrome, go to github.com, and search for clawd-cursor"
 ["open Chrome", "go to github.com", "click search", "type clawd-cursor", "press enter"]
+
+Task: "Go to YouTube and search for cat videos"
+["open Chrome", "go to youtube.com", "click search", "type cat videos", "press enter"]
 
 Task: "Save the current document as PDF"
 ["click File menu", "click Save As", "click PDF", "click Save"]
 
 Task: "Open Notepad and type hello"
 ["open Notepad", "type hello"]
+
+Task: "Send an email to john about the meeting"
+["send an email to john about the meeting"]
 
 Task: "Drag the file to the trash"
 ["drag the file to the trash"]
