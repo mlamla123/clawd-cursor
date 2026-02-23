@@ -20,13 +20,13 @@ const program = new Command();
 program
   .name('clawd-cursor')
   .description('🐾 AI Desktop Agent — native screen control')
-  .version('0.4.0');
+  .version('0.5.0');
 
 program
   .command('start')
   .description('Start the Clawd Cursor agent')
   .option('--port <port>', 'API server port', '3847')
-  .option('--provider <provider>', 'AI provider (anthropic|openai)', 'anthropic')
+  .option('--provider <provider>', 'AI provider (anthropic|openai|ollama|kimi)', 'anthropic')
   .option('--model <model>', 'Vision model to use')
   .option('--api-key <key>', 'AI provider API key')
   .option('--debug', 'Save screenshots to debug/ folder (off by default)')
@@ -48,8 +48,8 @@ program
 
     console.log(`
 🐾 ╔═══════════════════════════════════════╗
-   ║       CLAWD CURSOR v0.4.0             ║
-   ║   AI Desktop Agent — Native Control   ║
+   ║       CLAWD CURSOR v0.5.0             ║
+   ║   AI Desktop Agent — Smart Pipeline   ║
    ╚═══════════════════════════════════════╝
 `);
 
@@ -81,6 +81,21 @@ program
       console.log('\n👋 Shutting down...');
       agent.disconnect();
       process.exit(0);
+    });
+  });
+
+program
+  .command('doctor')
+  .description('🩺 Diagnose setup and auto-configure the pipeline')
+  .option('--provider <provider>', 'AI provider (anthropic|openai|ollama|kimi)')
+  .option('--api-key <key>', 'AI provider API key')
+  .option('--no-save', 'Don\'t save config to disk')
+  .action(async (opts) => {
+    const { runDoctor } = await import('./doctor');
+    await runDoctor({
+      apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+      provider: opts.provider,
+      save: opts.save !== false,
     });
   });
 

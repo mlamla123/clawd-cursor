@@ -12,119 +12,46 @@
 import * as crypto from 'crypto';
 import type { ClawdConfig, InputAction, ActionSequence, ScreenFrame } from './types';
 
-const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent controlling a Windows 11 computer via native screen capture and input.
-Real screen resolution: {REAL_WIDTH}x{REAL_HEIGHT}. Screenshot shown at: {LLM_WIDTH}x{LLM_HEIGHT} (scale factor: {SCALE}x).
+const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent on Windows 11.
+Screen: {REAL_WIDTH}x{REAL_HEIGHT}. Screenshot: {LLM_WIDTH}x{LLM_HEIGHT} (scale {SCALE}x).
+All coordinates in SCREENSHOT space — auto-scaled to real screen.
 
-IMPORTANT: All coordinates you provide should be in the SCREENSHOT coordinate space ({LLM_WIDTH}x{LLM_HEIGHT}).
-The system will automatically scale them to real screen coordinates.
+Win11: taskbar BOTTOM centered, system tray bottom-right.
 
-WINDOWS 11 LAYOUT:
-- Taskbar at BOTTOM, icons CENTERED (not left-aligned)
-- Start button (Windows logo) is in the CENTER of the taskbar
-- System tray (clock, icons) is bottom-RIGHT
-- Default Chrome has tabs at top, address bar below tabs
+Respond with ONLY valid JSON:
+{"kind":"click","x":N,"y":N,"description":"..."}
+{"kind":"double_click","x":N,"y":N,"description":"..."}
+{"kind":"type","text":"...","description":"..."}
+{"kind":"key_press","key":"Return|Super|ctrl+a|...","description":"..."}
+{"kind":"drag","x":N,"y":N,"endX":N,"endY":N,"description":"..."}
+{"kind":"sequence","description":"...","steps":[...]}
+{"kind":"a11y_click","name":"...","controlType":"Button","description":"..."} (PREFERRED over coords)
+{"kind":"a11y_set_value","name":"...","controlType":"Edit","value":"...","description":"..."}
+{"kind":"a11y_focus","name":"...","controlType":"Edit","description":"..."}
+{"kind":"done","description":"..."}
+{"kind":"error","description":"..."}
+{"kind":"wait","description":"...","waitMs":2000}
 
-RESPONSE FORMAT — respond with ONLY valid JSON, no other text:
+RULES:
+1. Check if task already done → {"kind":"done"}
+2. ONE JSON only. Use "sequence" for multi-step flows (forms)
+3. NEVER repeat completed actions. Track progress
+4. PREFER a11y_* actions over pixel coords when accessibility data available
+5. Use sequences to batch predictable steps`;
 
-SINGLE ACTION (most cases):
-{"kind": "click", "x": 640, "y": 710, "description": "Click Start button in center of taskbar"}
-{"kind": "double_click", "x": 100, "y": 200, "description": "Open file"}
-{"kind": "type", "text": "hello", "description": "Type greeting"}
-{"kind": "key_press", "key": "Return", "description": "Press Enter"}
-{"kind": "key_press", "key": "Super", "description": "Press Windows key"}
-{"kind": "key_press", "key": "ctrl+a", "description": "Select all"}
+const DECOMPOSE_SYSTEM_PROMPT = `Decompose desktop tasks into atomic sub-tasks. Return ONLY a JSON array of strings.
 
-DRAG (for drawing, moving items, resizing — holds left click from start to end):
-{"kind": "drag", "x": 200, "y": 300, "endX": 400, "endY": 300, "description": "Draw a horizontal line"}
-{"kind": "drag", "x": 100, "y": 100, "endX": 300, "endY": 400, "description": "Drag file to folder"}
+Commands: "open [app]", "type [text]", "click [element]", "go to [URL]", "press [key]", "focus [app]", "close [app]"
 
-SEQUENCE (for predictable multi-step flows like filling forms):
-{"kind": "sequence", "description": "Fill email form", "steps": [
-  {"kind": "click", "x": 400, "y": 200, "description": "Click To field"},
-  {"kind": "type", "text": "user@email.com", "description": "Type recipient"},
-  {"kind": "key_press", "key": "Tab", "description": "Move to subject"}
-]}
-
-COMPLETION:
-{"kind": "done", "description": "Task completed — email sent"}
-
-ERROR:
-{"kind": "error", "description": "Cannot proceed because X"}
-
-ACCESSIBILITY ACTION (use when element name/ID is in the accessibility tree — PREFERRED over click coordinates):
-{"kind": "a11y_click", "name": "Compose", "controlType": "Button", "description": "Click Compose button via accessibility"}
-{"kind": "a11y_set_value", "name": "To", "controlType": "Edit", "value": "user@email.com", "description": "Set To field value"}
-{"kind": "a11y_focus", "name": "Subject", "controlType": "Edit", "description": "Focus the Subject field"}
-
-WAIT (for loading):
-{"kind": "wait", "description": "Waiting for page to load", "waitMs": 2000}
-
-CRITICAL RULES:
-1. BEFORE acting, check: has the task ALREADY BEEN COMPLETED based on previous steps? If yes → done
-2. ONE JSON response only. Use "sequence" for predictable multi-step flows
-3. Coordinates should be in the SCREENSHOT space ({LLM_WIDTH}x{LLM_HEIGHT}), NOT real screen space
-4. NEVER repeat an action that was already performed in previous steps
-5. If you typed text and it appeared, that step is DONE — move to the next part of the task
-6. Track progress: if you've done steps A, B, C of a task, do step D next — don't restart
-7. Use sequences for form-filling to avoid re-screenshotting between each field
-8. PREFER accessibility actions (a11y_*) over pixel coordinates when the accessibility tree provides element info
-9. Accessibility actions are faster and more reliable than clicking coordinates`;
-
-const DECOMPOSE_SYSTEM_PROMPT = `You decompose desktop tasks into simple, precise sub-tasks for an action router.
-Return ONLY a JSON array of strings. Each string is a simple, atomic command.
-
-SUPPORTED COMMANDS (the action router parses these EXACTLY):
-- "open [app]"          → launches app via Start Menu search
-- "type [text]"         → types literal text via keyboard
-- "click [element]"     → clicks UI element by name via accessibility
-- "go to [full URL]"    → navigates browser to a URL (MUST be a real URL like docs.google.com)
-- "press [key]"         → key press (enter, escape, ctrl+s, etc.)
-- "focus [app/window]"  → brings window to front
-- "close [app]"         → closes the app
-
-CRITICAL RULES:
-- Each sub-task = ONE atomic action
-- "go to" MUST use a real, navigable URL — resolve service names to URLs:
-  Google Docs → docs.google.com, YouTube → youtube.com, Gmail → gmail.com,
-  GitHub → github.com, Twitter/X → x.com, etc.
-  NEVER output "go to google docs" — output "go to docs.google.com"
-- For tasks that require visual interaction (drawing, dragging, arranging,
-  navigating complex/unfamiliar UIs), keep them as a SINGLE descriptive
-  subtask — these will be handled by AI vision, not the router.
-- Don't over-decompose. If a task is complex or ambiguous, keep it as
-  one descriptive subtask for the vision system rather than guessing
-  at intermediate steps.
+Rules:
+- One action per string. Use real URLs (docs.google.com not "google docs")
+- Visual/complex tasks → keep as single descriptive subtask for AI vision
+- Don't over-decompose ambiguous tasks
 
 Examples:
-Task: "Open Paint and type hello world"
-["open Paint", "type hello world"]
-
-Task: "Open Paint and draw a stick figure"
-["open Paint", "draw a stick figure on the canvas"]
-
-Task: "Open Chrome and go to Google Docs"
-["open Chrome", "go to docs.google.com"]
-
-Task: "Open Chrome, go to github.com, and search for clawd-cursor"
-["open Chrome", "go to github.com", "click search", "type clawd-cursor", "press enter"]
-
-Task: "Go to YouTube and search for cat videos"
-["open Chrome", "go to youtube.com", "click search", "type cat videos", "press enter"]
-
-Task: "Save the current document as PDF"
-["click File menu", "click Save As", "click PDF", "click Save"]
-
-Task: "Open Notepad and type hello"
-["open Notepad", "type hello"]
-
-Task: "Send an email to john about the meeting"
-["send an email to john about the meeting"]
-
-Task: "Drag the file to the trash"
-["drag the file to the trash"]
-
-Task: "Type hello"
-["type hello"]`;
+"Open Paint and draw a stick figure" → ["open Paint", "draw a stick figure on the canvas"]
+"Open Chrome and go to GitHub" → ["open Chrome", "go to github.com"]
+"Type hello" → ["type hello"]`;
 
 interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -355,11 +282,13 @@ export class AIBrain {
 
     if (provider === 'anthropic') {
       return this.callAnthropic(systemPrompt, apiKey!, visionModel);
-    } else if (provider === 'openai') {
-      return this.callOpenAI(systemPrompt, apiKey!, visionModel);
+    } else {
+      // OpenAI-compatible: openai, ollama, kimi, etc.
+      const baseUrl = provider === 'ollama' ? 'http://localhost:11434/v1' :
+                      provider === 'kimi' ? 'https://api.moonshot.cn/v1' :
+                      'https://api.openai.com/v1';
+      return this.callOpenAICompat(systemPrompt, apiKey || '', visionModel, baseUrl);
     }
-
-    throw new Error(`Unsupported AI provider: ${provider}`);
   }
 
   /**
@@ -404,12 +333,16 @@ export class AIBrain {
         }
       }
       throw new Error('LLM text call failed after retries');
-    } else if (provider === 'openai') {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    } else {
+      // OpenAI-compatible: openai, ollama, kimi, etc.
+      const baseUrl = provider === 'ollama' ? 'http://localhost:11434/v1' :
+                      provider === 'kimi' ? 'https://api.moonshot.cn/v1' :
+                      'https://api.openai.com/v1';
+      const response = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
         },
         body: JSON.stringify({
           model,
@@ -422,10 +355,9 @@ export class AIBrain {
       });
 
       const data = await response.json() as any;
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
       return data.choices?.[0]?.message?.content || '';
     }
-
-    throw new Error(`Unsupported AI provider: ${provider}`);
   }
 
   private async callAnthropic(
@@ -448,23 +380,66 @@ export class AIBrain {
       body: JSON.stringify({
         model,
         max_tokens: 1024,
+        stream: true,
         system: systemPrompt,
         messages,
       }),
     });
 
-    const data = await response.json() as any;
-    if (data.error) {
+    if (!response.ok) {
+      const data = await response.json() as any;
       console.error('Anthropic API error:', data.error);
-      throw new Error(data.error.message || 'Anthropic API error');
+      throw new Error(data.error?.message || `Anthropic API error (${response.status})`);
     }
-    return data.content?.[0]?.text || '';
+
+    // Stream response — collect text as it arrives
+    let result = '';
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const event = JSON.parse(data);
+          if (event.type === 'content_block_delta' && event.delta?.text) {
+            result += event.delta.text;
+            // Early return: if we have a complete JSON object, stop waiting
+            if (result.includes('}') && !result.includes('"steps"')) {
+              try {
+                const match = result.match(/\{[\s\S]*\}/);
+                if (match) {
+                  JSON.parse(match[0]); // validates it's complete JSON
+                  reader.cancel();
+                  return result;
+                }
+              } catch { /* incomplete JSON, keep reading */ }
+            }
+          }
+        } catch { /* skip unparseable SSE lines */ }
+      }
+    }
+
+    return result;
   }
 
-  private async callOpenAI(
+  private async callOpenAICompat(
     systemPrompt: string,
     apiKey: string,
     model: string,
+    baseUrl: string = 'https://api.openai.com/v1',
   ): Promise<string> {
     const messages: any[] = [
       { role: 'system', content: systemPrompt },
@@ -494,11 +469,11 @@ export class AIBrain {
       }
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify({
         model,
@@ -508,6 +483,7 @@ export class AIBrain {
     });
 
     const data = await response.json() as any;
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     return data.choices?.[0]?.message?.content || '';
   }
 

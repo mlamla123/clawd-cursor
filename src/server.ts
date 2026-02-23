@@ -78,7 +78,7 @@ export function createServer(agent: Agent, config: ClawdConfig): express.Express
 
   // Health check
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok', version: '0.2.0' });
+    res.json({ status: 'ok', version: '0.5.0' });
   });
 
   return app;

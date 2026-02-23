@@ -89,7 +89,7 @@ export interface ClawdConfig {
     host: string;
   };
   ai: {
-    provider: 'openclaw' | 'anthropic' | 'openai';
+    provider: 'openclaw' | 'anthropic' | 'openai' | 'ollama' | 'kimi';
     apiKey?: string;
     model: string;
     visionModel: string;
@@ -130,7 +130,7 @@ export const DEFAULT_CONFIG: ClawdConfig = {
   },
   capture: {
     format: 'jpeg',
-    quality: 70,
+    quality: 55,
     maxWidth: 0,
   },
 };

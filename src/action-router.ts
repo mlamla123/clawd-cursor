@@ -230,10 +230,18 @@ export class ActionRouter {
       // Poll until a NEW window appears (or timeout)
       const readyResult = await this.waitForAppReady(searchTerm, windowsBefore);
 
+      // Maximize the new window for consistent layout
+      if (readyResult) {
+        try {
+          await this.desktop.keyPress('Super+Up');
+          await this.delay(200);
+        } catch { /* non-critical */ }
+      }
+
       return {
         handled: true,
         description: readyResult
-          ? `Launched "${searchTerm}" — window ready (${readyResult.title})`
+          ? `Launched "${searchTerm}" — window ready & maximized (${readyResult.title})`
           : `Launched "${searchTerm}" via Start Menu search (readiness timeout — proceeding anyway)`,
       };
     } catch (err) {

@@ -27,6 +27,9 @@ import { AccessibilityBridge } from './accessibility';
 import { ActionRouter } from './action-router';
 import { SafetyTier } from './types';
 import { ComputerUseBrain } from './computer-use';
+import { A11yReasoner } from './a11y-reasoner';
+import { loadPipelineConfig } from './doctor';
+import type { PipelineConfig } from './providers';
 import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction, ActionSequence, A11yAction } from './types';
 
 const MAX_STEPS = 15;
@@ -41,6 +44,7 @@ export class Agent {
   private a11y: AccessibilityBridge;
   private router: ActionRouter;
   private computerUse: ComputerUseBrain | null = null;
+  private reasoner: A11yReasoner | null = null;
   private config: ClawdConfig;
   private hasApiKey: boolean;
   private state: AgentState = {
@@ -63,6 +67,13 @@ export class Agent {
     if (!this.hasApiKey) {
       console.log(`⚡ Running in offline mode (no API key). Local parser + action router only.`);
       console.log(`   To unlock AI vision fallback, set AI_API_KEY in .env`);
+    }
+
+    // Load pipeline config from doctor (if available)
+    const pipelineConfig = loadPipelineConfig();
+    if (pipelineConfig && pipelineConfig.layer2.enabled) {
+      this.reasoner = new A11yReasoner(this.a11y, pipelineConfig);
+      console.log(`🧠 Layer 2 (Accessibility Reasoner): ${pipelineConfig.layer2.model}`);
     }
   }
 
@@ -238,15 +249,37 @@ export class Agent {
         console.log(`   ✅ Router: ${routeResult.description}`);
         steps.push({ action: 'routed', description: routeResult.description, success: true, timestamp: Date.now() });
         const isLaunch = routeResult.description.toLowerCase().includes('launch');
-        await this.delay(isLaunch ? 300 : 200);
+        await this.delay(isLaunch ? 150 : 50);
         continue;
       }
 
       console.log(`   ⚠️ Router can't handle: ${routeResult.description}`);
 
-      // LLM vision fallback
+      // Layer 2: Accessibility Reasoner (text-only LLM, no screenshot)
+      if (this.reasoner?.isAvailable()) {
+        const reasonResult = await this.reasoner.reason(subtask);
+        if (reasonResult.handled) {
+          if (reasonResult.action) {
+            try {
+              await this.executeAction(reasonResult.action as InputAction & { description?: string });
+              steps.push({ action: reasonResult.action.kind, description: reasonResult.description, success: true, timestamp: Date.now() });
+              await this.delay(100);
+              continue;
+            } catch (err) {
+              console.log(`   ⚠️ Layer 2 action failed: ${err} → falling through to Layer 3`);
+            }
+          } else {
+            // Task done per reasoner
+            steps.push({ action: 'done', description: reasonResult.description, success: true, timestamp: Date.now() });
+            continue;
+          }
+        }
+        // If unsure or failed, fall through to Layer 3
+      }
+
+      // Layer 3: LLM vision fallback (screenshot)
       if (this.hasApiKey) {
-        await this.delay(500);
+        await this.delay(150);
         console.log(`   🧠 LLM vision fallback...`);
         const fallbackResult = await this.executeLLMFallback(subtask, steps, debugDir, i);
         llmCallCount += fallbackResult.llmCalls;
@@ -300,7 +333,7 @@ export class Agent {
 
       // ── Perf Opt #2: Parallelize screenshot + a11y fetch ──
       console.log(`   📸 LLM step ${j + 1}: Capturing screen + a11y context...`);
-      if (j > 0) await this.delay(1500); // longer pause between LLM retries to let UI settle
+      if (j > 0) await this.delay(500); // pause between LLM retries to let UI settle
 
       const [screenshot, a11yContext] = await Promise.all([
         this.desktop.captureForLLM(),
@@ -375,7 +408,7 @@ export class Agent {
             await this.executeAction(seqStep);
             steps.push({ action: seqStep.kind, description: seqStep.description, success: true, timestamp: Date.now() });
             stepDescriptions.push(seqStep.description);
-            await this.delay(200);
+            await this.delay(80);
           } catch (err) {
             console.error(`   Failed:`, err);
             steps.push({ action: seqStep.kind, description: `FAILED: ${seqStep.description}`, success: false, error: String(err), timestamp: Date.now() });

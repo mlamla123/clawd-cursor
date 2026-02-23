@@ -24,74 +24,31 @@ import type { ClawdConfig, StepResult } from './types';
 const BETA_HEADER = 'computer-use-2025-01-24';
 const MAX_ITERATIONS = 30;
 
-const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent controlling a Windows 11 computer via native screen capture and input.
-You MUST complete the user's task reliably. Think step by step, verify your progress, and recover from mistakes.
+const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent on Windows 11. Complete tasks fast and reliably.
 
-WINDOWS 11 LAYOUT:
-- Taskbar at BOTTOM, icons CENTERED
-- Start button in CENTER of taskbar  
-- System tray (clock, icons) bottom-RIGHT
-- Resolution: high-DPI display
+Win11: taskbar BOTTOM centered, system tray bottom-right, high-DPI.
 
-ACCESSIBILITY CONTEXT:
-Each tool_result includes an ACCESSIBILITY section with:
-- WINDOWS: all open windows with process names, titles, PIDs, and bounds
-- FOCUSED WINDOW UI TREE: interactive elements (buttons, text fields, menus) with coordinates
-- TASKBAR APPS: pinned/running apps in the taskbar
+ACCESSIBILITY: Each tool_result has WINDOWS list, FOCUSED WINDOW UI TREE (elements+coords), TASKBAR APPS.
+Use accessibility data to find exact element positions and verify state.
 
-USE THE ACCESSIBILITY DATA TO:
-1. KNOW what's on screen — don't guess from pixels alone
-2. VERIFY state after actions — check if the right window/page is active
-3. FIND exact element positions — click coordinates from the UI tree, not estimated pixel locations
-4. DETECT errors — if a dialog/popup appeared, handle it before continuing
+CRITICAL — SPEED RULES:
+1. BATCH ACTIONS. Return multiple computer tool calls in ONE response whenever possible. This is the #1 speed optimization.
+2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes (opening app, dialog appearing, major navigation). Then batch all predictable actions without screenshots.
+3. Only request a screenshot when: (a) you opened a new app/dialog/page, (b) something might have failed, (c) you need to verify final results.
+4. After opening ANY app: send key "super+Up" to maximize it (ensures consistent full-screen layout).
+5. Prefer keyboard shortcuts over mouse clicks. Type instead of click when possible.
+6. For save/open dialogs: use ABSOLUTE paths (C:\Users\...) never environment variables (%USERPROFILE%).
+7. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area of the screenshot. Don't describe the entire screen.
 
-PLANNING RULES:
-1. Before EVERY action, state what you expect to happen and why
-2. After seeing the result, CHECK: did it work? Is the right window focused? Did the expected UI appear?
-3. If something went wrong (wrong page, popup, ad, error dialog), STOP and recover before continuing
-4. Never repeat the same failed action — try an alternative approach
-5. If stuck after 3 attempts at the same goal, try a completely different strategy
+PATTERNS:
+- Open app: key "super" + type name + key "Return" + wait 2s + key "super+Up" (maximize) — all in one response
+- Navigate URL: key "ctrl+l" + type full URL + key "Return" — all in one response
+- Fill forms: tab between fields + type values — batch the entire form in one response
+- Repetitive actions (drawing, data entry, clicking multiple items): batch ALL of them in one response after verifying the first one works
+- Save file: key "ctrl+s", wait 1s, type absolute path, key "Return" — all in one response
+- Recovery: popup → Escape, wrong page → ctrl+l + correct URL, app frozen → alt+F4 + reopen
 
-RELIABLE PATTERNS (use these, they work consistently):
-- Open any app: key "super", wait 500ms, type app name, wait 500ms, key "Return"
-- Navigate to URL in browser: key "ctrl+l" (focuses address bar), type FULL URL, key "Return"
-  - ALWAYS use ctrl+l first — never click the address bar manually
-  - Type the complete URL including https:// 
-  - Example: key "ctrl+l", type "https://docs.google.com/document/create", key "Return"
-- New browser tab: key "ctrl+t", then ctrl+l to type URL
-- Close popup/dialog: key "Escape" or look for X button in accessibility tree
-- Switch apps: key "alt+Tab" or click window from ACCESSIBILITY WINDOWS list
-- Select all text: key "ctrl+a"
-- Copy/paste: key "ctrl+c" / key "ctrl+v"
-- Calculator: USE KEYBOARD to type numbers and operators (type "255*38=" instead of clicking buttons one by one)
-- Any input field: prefer typing over clicking buttons when possible — it's faster and more reliable
-
-MISTAKES TO AVOID:
-- Do NOT use search engines to navigate to known URLs — type the URL directly
-- Do NOT click on ads or sponsored results — they are never the target
-- Do NOT click randomly hoping to find something — read the accessibility tree
-- Do NOT take a screenshot after every single action — only after state-changing actions
-- Do NOT keep retrying the same click coordinates — if it didn't work, the element might have moved
-- Do NOT click on the very edge of the screen (y=720 is the bottom) — taskbar buttons need precise coordinates from accessibility data
-- Do NOT click individual calculator/numpad buttons — type the numbers instead
-- If a page is loading, use "wait" action (1-3 seconds) instead of clicking again
-- To switch to an already-open app: use Start menu search (most reliable) or alt+Tab — clicking taskbar icons by pixel is unreliable
-
-BATCHING — CRITICAL FOR SPEED:
-- You can call the computer tool MULTIPLE TIMES in a single response
-- DO THIS: batch sequential actions that don't need visual verification between them
-- Example: to open an app and type in it:
-  1. key "super" → STOP, take screenshot (need to verify Start menu opened)
-  2. type "chrome" + key "Return" → batch these TWO in one response (no screenshot needed between)
-  3. After app loads, key "ctrl+l" + type "https://example.com" + key "Return" → batch ALL THREE
-- Only request a screenshot when you need to SEE the result (page loaded? right window? error?)
-- NEVER use just one tool call per response when you can batch related actions
-
-RECOVERY:
-- Unexpected popup/ad: press Escape, or find close button in accessibility tree
-- Wrong page: use ctrl+l to navigate to correct URL
-- App not responding: try alt+F4 and reopen
-- Browser went to wrong site: ctrl+l, type correct URL, Enter`;
+Do NOT: take screenshots after every action, go one action at a time when you can batch, use search engines for known URLs, retry same failed coords, describe the entire screenshot when a focus hint is given.`;
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -147,8 +104,8 @@ export class ComputerUseBrain {
     this.screenHeight = screen.height;
 
     // Scale factor MUST match NativeDesktop.captureForLLM() — use floating point, not ceil
-    this.scaleFactor = screen.width > 1280 ? screen.width / 1280 : 1;
-    this.llmWidth = Math.min(screen.width, 1280);
+    this.scaleFactor = screen.width > 1024 ? screen.width / 1024 : 1;
+    this.llmWidth = Math.min(screen.width, 1024);
     this.llmHeight = Math.round(screen.height / this.scaleFactor);
 
     console.log(`   🖥️  Computer Use: declaring ${this.llmWidth}x${this.llmHeight} display (scale ${this.scaleFactor}x from ${this.screenWidth}x${this.screenHeight})`);
@@ -329,31 +286,35 @@ export class ComputerUseBrain {
               ],
             });
           } else if (isLastInBatch) {
-            // Last action in batch: send full screenshot + a11y context
+            // Last action in batch: full screenshot + focus hint
             const isNavigation = action === 'key' && toolUse.input.text?.toLowerCase().includes('return');
             const isAppLaunch = action === 'key' && toolUse.input.text?.toLowerCase().includes('super');
             const isTyping = action === 'type';
-            const delayMs = isAppLaunch ? 1000 : isNavigation ? 800 : isTyping ? 100 : 300;
+            const isDrag = action === 'drag' || action === 'left_click_drag';
+            const delayMs = isAppLaunch ? 600 : isNavigation ? 400 : isTyping ? 50 : isDrag ? 30 : 150;
             await this.delay(delayMs);
 
             const screenshot = await this.desktop.captureForLLM();
             if (debugDir) this.saveDebugScreenshot(screenshot.buffer, debugDir, subtaskIndex, i, action);
             const a11yContext = await this.getA11yContext();
             const verifyHint = this.getVerificationHint(action, toolUse.input);
+            const focusHint = this.getFocusHint(action, toolUse.input);
 
             toolResults.push({
               type: 'tool_result',
               tool_use_id: toolUse.id,
               content: [
                 this.screenshotToContent(screenshot),
-                { type: 'text', text: `${verifyHint}${a11yContext}` },
+                { type: 'text', text: `${focusHint}${verifyHint}${a11yContext}` },
               ],
             });
           } else {
             // Not last in batch: lightweight response, skip screenshot
-            const isNavigation = action === 'key' && toolUse.input.text?.toLowerCase().includes('return');
             const isAppLaunch = action === 'key' && toolUse.input.text?.toLowerCase().includes('super');
-            const delayMs = isAppLaunch ? 1000 : isNavigation ? 800 : 150;
+            const isDrag = action === 'drag';
+            const isClick = action.includes('click');
+            // Minimal delays for batched actions — UI is predictable
+            const delayMs = isAppLaunch ? 600 : isDrag ? 20 : isClick ? 30 : 80;
             await this.delay(delayMs);
 
             console.log(`   ⏭️  Skipping screenshot (batch ${ti+1}/${toolUseBlocks.length})`);
@@ -620,6 +581,34 @@ export class ComputerUseBrain {
     }
     if (action === 'type') {
       return 'VERIFY: Was the text entered in the right field? Check the focused element.\n';
+    }
+    return '';
+  }
+
+  /**
+   * Generate a FOCUS hint telling Claude where to look in the screenshot.
+   * Reduces output tokens by directing attention to the relevant area.
+   */
+  private getFocusHint(action: string, input: ToolUseBlock['input']): string {
+    if (action.includes('click') && input.coordinate) {
+      const [x, y] = input.coordinate; // LLM coordinates
+      // Describe region in human terms based on position
+      const xZone = x < this.llmWidth * 0.33 ? 'left' : x > this.llmWidth * 0.66 ? 'right' : 'center';
+      const yZone = y < this.llmHeight * 0.25 ? 'top' : y > this.llmHeight * 0.75 ? 'bottom' : 'middle';
+      return `FOCUS: Look at the ${yZone}-${xZone} area around (${x},${y}) to verify your click landed correctly. Don't analyze the entire screenshot — just check the target area.\n`;
+    }
+    if (action === 'left_click_drag' && input.coordinate && input.start_coordinate) {
+      return `FOCUS: Look at the canvas/drawing area to verify the drag drew correctly. Don't re-analyze toolbars unless something went wrong.\n`;
+    }
+    if (action === 'type') {
+      return `FOCUS: Look at the text input field to verify your text was entered correctly. Don't analyze unrelated areas.\n`;
+    }
+    if (action === 'key') {
+      const key = input.text?.toLowerCase() || '';
+      if (key.includes('super')) return `FOCUS: Look for the Start menu or search box that should have appeared.\n`;
+      if (key.includes('tab')) return `FOCUS: Check the window title bar to see which window is now focused.\n`;
+      if (key === 'return' || key === 'enter') return `FOCUS: Check if the expected result happened (app opened, dialog closed, form submitted).\n`;
+      if (key.includes('ctrl+s')) return `FOCUS: Look for a Save dialog that should have appeared.\n`;
     }
     return '';
   }

@@ -47,8 +47,8 @@ const KEY_MAP: Record<string, Key> = {
   'space': Key.Space,
 };
 
-/** LLM screenshot target width — halves tokens for 2560px screens */
-const LLM_TARGET_WIDTH = 1280;
+/** LLM screenshot target width — smaller = faster API calls + fewer tokens */
+const LLM_TARGET_WIDTH = 1024;
 
 export class NativeDesktop extends EventEmitter {
   private config: ClawdConfig;
@@ -174,6 +174,57 @@ export class NativeDesktop extends EventEmitter {
       scaleFactor: this.scaleFactor,
       llmWidth,
       llmHeight,
+    };
+  }
+
+  /**
+   * Capture a CROPPED region of the screen, resized for LLM.
+   * Coordinates are in REAL screen pixels.
+   * Returns the cropped image at higher effective resolution (more detail per pixel).
+   */
+  async captureRegionForLLM(
+    x: number, y: number, w: number, h: number
+  ): Promise<ScreenFrame & { scaleFactor: number; llmWidth: number; llmHeight: number; regionX: number; regionY: number }> {
+    if (!this.connected) throw new Error('Not connected');
+
+    const img = await screen.grab();
+
+    // Clamp to screen bounds
+    const rx = Math.max(0, Math.min(x, img.width - 1));
+    const ry = Math.max(0, Math.min(y, img.height - 1));
+    const rw = Math.min(w, img.width - rx);
+    const rh = Math.min(h, img.height - ry);
+
+    // Scale crop to LLM-sized output (max 1024px wide)
+    const cropScale = rw > LLM_TARGET_WIDTH ? rw / LLM_TARGET_WIDTH : 1;
+    const llmWidth = Math.min(rw, LLM_TARGET_WIDTH);
+    const llmHeight = Math.round(rh / cropScale);
+
+    const { format, quality } = this.config.capture;
+
+    let pipeline = sharp(img.data, {
+      raw: { width: img.width, height: img.height, channels: 4 },
+    }).extract({ left: rx, top: ry, width: rw, height: rh });
+
+    if (llmWidth < rw) {
+      pipeline = pipeline.resize(llmWidth, llmHeight, { fit: 'fill', kernel: 'lanczos3' });
+    }
+
+    const buffer = format === 'jpeg'
+      ? await pipeline.jpeg({ quality }).toBuffer()
+      : await pipeline.png().toBuffer();
+
+    return {
+      width: rw,
+      height: rh,
+      buffer,
+      timestamp: Date.now(),
+      format,
+      scaleFactor: cropScale,
+      llmWidth,
+      llmHeight,
+      regionX: rx,
+      regionY: ry,
     };
   }
 

@@ -2,6 +2,43 @@
 
 All notable changes to Clawd Cursor will be documented in this file.
 
+## [0.5.0] - 2026-02-23 — Smart Pipeline + Doctor + Batch Execution
+
+### Added
+- **`clawd-cursor doctor`** — auto-diagnoses setup, tests models, configures optimal pipeline
+- **3-layer pipeline** — Action Router → Accessibility Reasoner → Screenshot fallback
+- **Layer 2: Accessibility Reasoner** (`src/a11y-reasoner.ts`) — text-only LLM reads the UI tree, no screenshots needed. Uses cheap models (Haiku, Qwen, GPT-4o-mini).
+- **Batch action execution** — Claude returns multiple actions per response (3.6 avg), skipping screenshots between batched actions. Drawing tasks execute 10+ actions in a single API call.
+- **Focus hints** — each screenshot includes a FOCUS directive telling Claude where to look, reducing output tokens and decision time
+- **Auto-maximize** — apps launched via Action Router are automatically maximized (`Win+Up`) for consistent layout
+- **Region capture** — `captureRegionForLLM()` crops screenshots to specific areas (2-30KB vs 58KB full)
+- **Checkpoint strategy** — screenshots only after critical state changes (app open, dialog appear), not after every action
+- **Multi-provider support** — Anthropic, OpenAI, Ollama (local/free), Kimi. Same codebase, auto-detected.
+- **Provider model map** (`src/providers.ts`) — auto-selects cheap/expensive models per provider
+- **Self-healing** — doctor falls back if a model is unavailable (e.g., Haiku → Qwen). Circuit breaker disables failing layers at runtime.
+- **Streaming LLM responses** — early JSON return saves 1-3s per call
+- **Combined accessibility script** (`scripts/get-screen-context.ps1`) — 1 PowerShell spawn instead of 3
+- **Benchmark harness** (`test-perf-comparison.ts`)
+
+### Performance
+- Screenshots: 120KB → 58KB (52% smaller), 1280px → 1024px target
+- JPEG quality: 70 → 55
+- Delays: 200-1500ms → 50-600ms across the board
+- System prompts: ~60% smaller (fewer tokens per call)
+- Accessibility tree: filtered to interactive elements only, 3000 char cap
+- Taskbar cache: 30s TTL (was queried every call)
+- Screen context cache: 500ms → 2s TTL
+
+### Benchmarks
+
+| Task | v0.4 | v0.5 (Ollama, $0) | v0.5 (Anthropic) | v0.5 + Batch |
+|------|------|--------|---------|---------|
+| Calculator | 43s | 2.6s | 20.1s | — |
+| Notepad | 73s | 2.0s | 54.2s | — |
+| File Explorer | 53s | 1.9s | 22.1s | — |
+| Paint stickman | ~250s (30 calls) | — | ~124s (19 calls) | **101s (11 calls)** |
+| GitHub profile | — | — | ~106s (15 calls) | — |
+
 ## [0.4.0] - 2026-02-22 — Native Desktop Control
 
 **VNC removed.** Clawd Cursor now controls the desktop natively via @nut-tree-fork/nut-js. No VNC server required.

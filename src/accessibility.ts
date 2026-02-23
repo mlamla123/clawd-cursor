@@ -30,6 +30,7 @@ const SCRIPT_MAP: Record<string, Record<string, string>> = {
     'focus-window': 'focus-window.ps1',
     'get-foreground-window': 'get-foreground-window.ps1',
     'get-ui-tree': 'get-ui-tree.ps1',
+    'get-screen-context': 'get-screen-context.ps1',
   },
   darwin: {
     'get-windows': 'get-windows.jxa',
@@ -78,9 +79,13 @@ export class AccessibilityBridge {
   private readonly WINDOW_CACHE_TTL = 2000; // 2s cache for window list
   private explorerProcessId: number | null = null; // Cached Explorer PID for taskbar detection
 
-  // ── Perf Opt #3: Screen context cache (500ms TTL) ──
+  /** Cached taskbar buttons — rarely change, queried once */
+  private taskbarCache: { buttons: UIElement[]; timestamp: number } | null = null;
+  private readonly TASKBAR_CACHE_TTL = 30000; // 30s — taskbar barely changes
+
+  // ── Perf Opt #3: Screen context cache (2s TTL — UI rarely changes mid-LLM-call) ──
   private screenContextCache: ScreenContextCache | null = null;
-  private readonly SCREEN_CONTEXT_CACHE_TTL = 500;
+  private readonly SCREEN_CONTEXT_CACHE_TTL = 2000;
 
   /**
    * Check if the platform's script shell is available.
@@ -331,13 +336,12 @@ export class AccessibilityBridge {
 
   /**
    * Get a text summary of the UI for the AI.
-   * Includes windows list and taskbar buttons (always useful).
-   * Optionally includes focused window UI tree.
+   * Uses combined script (1 PowerShell spawn instead of 3).
+   * Includes windows list, taskbar buttons, and focused window UI tree.
    */
   async getScreenContext(focusedProcessId?: number): Promise<string> {
     // ── Perf Opt #3: Return cached context if fresh ──
     if (
-      !focusedProcessId &&
       this.screenContextCache &&
       Date.now() - this.screenContextCache.timestamp < this.SCREEN_CONTEXT_CACHE_TTL
     ) {
@@ -345,61 +349,120 @@ export class AccessibilityBridge {
     }
 
     try {
-      const windows = await this.getWindows();
-      let context = `WINDOWS:\n`;
-      for (const w of windows) {
-        context += `  ${w.isMinimized ? '🔽' : '🟢'} [${w.processName}] "${w.title}" pid:${w.processId}`;
-        if (!w.isMinimized) context += ` at (${w.bounds.x},${w.bounds.y}) ${w.bounds.width}x${w.bounds.height}`;
-        context += `\n`;
+      // Use combined script for single PowerShell spawn
+      const args: string[] = [];
+      if (focusedProcessId) args.push('-FocusedProcessId', String(focusedProcessId));
+      args.push('-MaxDepth', '2');
+
+      let context = '';
+
+      try {
+        const combined = await this.runScript('get-screen-context.ps1', args);
+
+        // Format windows
+        if (combined.windows && Array.isArray(combined.windows)) {
+          context += `WINDOWS:\n`;
+          for (const w of combined.windows) {
+            context += `  ${w.isMinimized ? '🔽' : '🟢'} [${w.processName}] "${w.title}" pid:${w.processId}`;
+            if (!w.isMinimized) context += ` at (${w.bounds.x},${w.bounds.y}) ${w.bounds.width}x${w.bounds.height}`;
+            context += `\n`;
+          }
+          // Update window cache from combined result
+          this.windowCache = { windows: combined.windows, timestamp: Date.now() };
+        }
+
+        // Format UI tree (already filtered to interactive elements by the script)
+        if (combined.uiTree) {
+          context += `\nFOCUSED WINDOW UI TREE:\n`;
+          context += this.formatTree(Array.isArray(combined.uiTree) ? combined.uiTree : [combined.uiTree], '  ');
+        }
+      } catch {
+        // Fallback to separate calls if combined script fails
+        const windows = await this.getWindows();
+        context += `WINDOWS:\n`;
+        for (const w of windows) {
+          context += `  ${w.isMinimized ? '🔽' : '🟢'} [${w.processName}] "${w.title}" pid:${w.processId}`;
+          if (!w.isMinimized) context += ` at (${w.bounds.x},${w.bounds.y}) ${w.bounds.width}x${w.bounds.height}`;
+          context += `\n`;
+        }
+
+        if (focusedProcessId) {
+          try {
+            const tree = await this.getUITree(focusedProcessId, 2);
+            context += `\nFOCUSED WINDOW UI TREE (pid:${focusedProcessId}):\n`;
+            context += this.formatTree(Array.isArray(tree) ? tree : [tree], '  ');
+          } catch { /* tree query failed, skip */ }
+        }
       }
 
-      // Always include taskbar buttons (useful for launching/switching apps)
+      // Include cached taskbar buttons (refreshed every 30s)
       try {
-        const explorerPid = await this.getExplorerProcessId();
-        if (explorerPid) {
-          const taskbarButtons = await this.findElement({ controlType: 'Button' });
-          // Filter for taskbar buttons: owned by Explorer + has Taskbar in class name
-          const tbButtons = taskbarButtons.filter((b: any) =>
-            b.processId === explorerPid && 
-            (b.className?.includes('Taskbar') || b.className?.includes('MSTaskList'))
-          );
-          if (tbButtons.length > 0) {
-            context += `\nTASKBAR APPS:\n`;
-            for (const b of tbButtons) {
-              context += `  📌 "${b.name}" at (${b.bounds.x},${b.bounds.y})\n`;
-            }
+        let tbButtons: UIElement[] = [];
+        if (this.taskbarCache && Date.now() - this.taskbarCache.timestamp < this.TASKBAR_CACHE_TTL) {
+          tbButtons = this.taskbarCache.buttons;
+        } else {
+          const explorerPid = await this.getExplorerProcessId();
+          if (explorerPid) {
+            const taskbarButtons = await this.findElement({ controlType: 'Button' });
+            tbButtons = taskbarButtons.filter((b: any) =>
+              b.processId === explorerPid && 
+              (b.className?.includes('Taskbar') || b.className?.includes('MSTaskList'))
+            );
+            this.taskbarCache = { buttons: tbButtons, timestamp: Date.now() };
+          }
+        }
+        if (tbButtons.length > 0) {
+          context += `\nTASKBAR APPS:\n`;
+          for (const b of tbButtons) {
+            context += `  📌 "${b.name}" at (${b.bounds.x},${b.bounds.y})\n`;
           }
         }
       } catch { /* taskbar query failed, skip */ }
 
-      // Include focused window's UI tree if provided
-      if (focusedProcessId) {
-        try {
-          const tree = await this.getUITree(focusedProcessId, 2);
-          context += `\nFOCUSED WINDOW UI TREE (pid:${focusedProcessId}):\n`;
-          context += this.formatTree(Array.isArray(tree) ? tree : [tree], '  ');
-        } catch { /* tree query failed, skip */ }
-      }
-
       // Cache the result
-      if (!focusedProcessId) {
-        this.screenContextCache = { context, timestamp: Date.now() };
-      }
+      this.screenContextCache = { context, timestamp: Date.now() };
       return context;
     } catch (err) {
       return `(Accessibility unavailable: ${err})`;
     }
   }
 
+  /** Interactive control types worth sending to the LLM */
+  private static readonly INTERACTIVE_TYPES = new Set([
+    'ControlType.Button', 'ControlType.Edit', 'ControlType.ComboBox',
+    'ControlType.CheckBox', 'ControlType.RadioButton', 'ControlType.Hyperlink',
+    'ControlType.MenuItem', 'ControlType.Menu', 'ControlType.Tab',
+    'ControlType.TabItem', 'ControlType.ListItem', 'ControlType.TreeItem',
+    'ControlType.Slider', 'ControlType.ScrollBar', 'ControlType.ToolBar',
+    'ControlType.Document', 'ControlType.DataItem',
+  ]);
+
+  /** Max chars for accessibility context sent to LLM */
+  private static readonly MAX_CONTEXT_CHARS = 3000;
+
   private formatTree(elements: UIElement[], indent: string): string {
     let result = '';
     for (const el of elements) {
-      const name = el.name ? `"${el.name}"` : '';
-      const id = el.automationId ? `id:${el.automationId}` : '';
-      const bounds = `@${el.bounds.x},${el.bounds.y}`;
-      result += `${indent}[${el.controlType}] ${name} ${id} ${bounds}\n`;
+      // Only include interactive elements or those with useful names
+      const isInteractive = AccessibilityBridge.INTERACTIVE_TYPES.has(el.controlType);
+      const hasName = !!(el.name && el.name.trim());
+
+      if (isInteractive || hasName) {
+        const name = el.name ? `"${el.name}"` : '';
+        const id = el.automationId ? `id:${el.automationId}` : '';
+        const bounds = `@${el.bounds.x},${el.bounds.y}`;
+        result += `${indent}[${el.controlType}] ${name} ${id} ${bounds}\n`;
+
+        // Stop adding if we're over the limit
+        if (result.length > AccessibilityBridge.MAX_CONTEXT_CHARS) {
+          result += `${indent}... (truncated)\n`;
+          return result;
+        }
+      }
+
       if (el.children) {
         result += this.formatTree(el.children, indent + '  ');
+        if (result.length > AccessibilityBridge.MAX_CONTEXT_CHARS) return result;
       }
     }
     return result;

@@ -5,8 +5,8 @@
 <h1 align="center">Clawd Cursor</h1>
 
 <p align="center">
-  <strong>AI Desktop Agent — Native Screen Control</strong><br>
-  Native Computer Use for complex tasks · Action Router for instant simple ones
+  <strong>AI Desktop Agent — Smart 3-Layer Pipeline</strong><br>
+  Works with any AI provider · Runs free with local models · Self-healing doctor
 </p>
 
 <p align="center">
@@ -15,50 +15,28 @@
 
 ---
 
-## What's New in v0.4.0
+## What's New in v0.5.0
 
-**Native desktop control.** Clawd Cursor no longer requires a VNC server. Desktop interaction is handled natively via [@nut-tree-fork/nut-js](https://github.com/nut-tree-fork/nut-js) — direct OS-level screen capture and input.
+**Smart pipeline + self-healing doctor.** Clawd Cursor now auto-detects your AI provider, tests your models, and builds the optimal execution pipeline — from completely free (Ollama) to full power (Anthropic Computer Use).
 
-- **17× faster screenshots** — ~50ms native capture vs ~850ms over VNC
-- **5× faster connect time** — ~38ms vs ~200ms+
-- **Zero server setup** — no TightVNC, no VNC password, just `npm install && npm start`
-- **Simpler onboarding** — three commands to get started
-- **RGBA natively** — no more BGRA→RGBA color swap
+- **`clawd-cursor doctor`** — auto-diagnoses your setup and configures everything
+- **3-layer pipeline** — Action Router → Accessibility Reasoner → Screenshot fallback
+- **Multi-provider** — Anthropic, OpenAI, Ollama (local/free), Kimi
+- **95% cheaper** — simple tasks run for $0 with local Qwen
+- **52% smaller screenshots** — 58KB payloads, faster API calls
+- **Streaming responses** — early JSON return saves 1-3s per LLM call
+- **Self-healing** — if a model fails, the pipeline adapts automatically
 
-### Performance Comparison
+### Performance
 
-| Metric | v0.3 (VNC) | v0.4 (Native) |
-|--------|-----------|---------------|
-| Screenshot capture | ~850ms | ~50ms (17× faster) |
-| Connect time | ~200ms+ | ~38ms (5× faster) |
-| Simple task total | ~115–120s | ~101s |
-| Complex task total | ~190–200s | ~156s |
+| Task | v0.4 (Anthropic only) | v0.5 (Ollama, $0) | v0.5 (Anthropic) |
+|------|-----------------------|---------------------|-------------------|
+| Calculator (255*38=) | 43s | **2.6s** | **20.1s** |
+| Notepad (type hello) | 73s | **2.0s** | **54.2s** |
+| File Explorer | 53s | **1.9s** | **22.1s** |
+| GitHub → read → Notepad | N/A | — | **134.1s** |
 
 ---
-
-## What is this?
-
-Your AI controls your desktop natively — direct screen capture and OS-level mouse/keyboard input. Depending on the provider, it either:
-
-**Path A — Computer Use API (Anthropic):** Claude receives the full task, takes screenshots of your desktop, and executes actions natively through the `computer_20250124` tool. It plans multi-step sequences, handles errors, and verifies results — all within a single conversation loop.
-
-```
-User: "Open Chrome, go to Google Docs, write a paragraph about dogs"
-
-  Claude sees the desktop → plans the sequence → executes step by step
-  10 API calls · 101.7s · All steps verified
-```
-
-**Path B — Decompose + Action Router (OpenAI/Offline):** The original approach. A text-only LLM call breaks the task into subtasks. The Action Router handles each one via Windows UI Automation (no screenshots, no vision). If the router can't handle a step, it falls back to vision.
-
-```
-User: "Open Notepad"
-
-  1. Parse → 1 subtask (text LLM, fast)
-  2. Action Router → find Notepad via UI Automation, launch it (no LLM)
-  
-  Total LLM calls: 1 (just parsing) · ~2s
-```
 
 ## Quick Start
 
@@ -68,20 +46,20 @@ cd clawd-cursor
 npm install && npm run build
 ```
 
-Set up your `.env`:
-```env
-AI_API_KEY=sk-ant-api03-...
-AI_PROVIDER=anthropic
+Run the doctor to auto-configure:
+```bash
+npx clawd-cursor doctor
 ```
 
-Run with Computer Use (recommended):
-```bash
-npm start -- --provider anthropic
-```
+The doctor will:
+1. Test your screen capture and accessibility bridge
+2. Detect available AI providers (Anthropic, OpenAI, Ollama)
+3. Test each model and find what works
+4. Build your optimal pipeline and save it
 
-Run with Action Router (fast/offline):
+Then start:
 ```bash
-npm start -- --provider openai
+npm start
 ```
 
 Send a task:
@@ -89,71 +67,110 @@ Send a task:
 curl http://localhost:3847/task -d '{"task": "Open Notepad and type hello world"}'
 ```
 
+### Provider Quick Setup
+
+**Free (no API key needed):**
+```bash
+# Just need Ollama running locally
+ollama pull qwen2.5:7b
+npx clawd-cursor doctor --provider ollama
+npm start -- --provider ollama
+```
+
+**Anthropic (recommended for complex tasks):**
+```bash
+echo "AI_API_KEY=sk-ant-api03-..." > .env
+npx clawd-cursor doctor
+npm start
+```
+
+**OpenAI:**
+```bash
+echo "AI_API_KEY=sk-..." > .env
+npx clawd-cursor doctor --provider openai
+npm start -- --provider openai
+```
+
+---
+
 ## How It Works
 
-### Path A — Computer Use API
+### The 3-Layer Pipeline
 
-When `--provider anthropic` is set, the entire task is sent to Claude along with the `computer_20250124` tool definition. Claude:
-
-1. Takes a screenshot of the desktop (native capture, ~50ms)
-2. Plans the next action (click, type, key press, scroll, drag)
-3. Executes via native desktop control (@nut-tree-fork/nut-js)
-4. Waits with adaptive delays (1000ms app launch, 800ms navigation, 100ms typing)
-5. Receives verification hint, screenshots again
-6. Repeats until the task is complete
-
-Key details:
-- **Display**: Scaled to 1280×720 for API compatibility
-- **Model**: `claude-sonnet-4-20250514`
-- **Header**: `anthropic-beta: computer-use-2025-01-24`
-- **System prompt**: Planning rules, ctrl+l for URLs, recovery strategies
-- **Mouse drag**: Smooth interpolation between points
-
-### Path B — Decompose + Action Router
-
-The original v0.1.0 pipeline:
-
-1. **Decompose** — Single text-only LLM call breaks the request into atomic subtasks
-2. **Action Router** — Queries Windows UI Automation tree. Finds elements by name, invokes them directly. Zero LLM calls.
-3. **Vision Fallback** — Only when the router can't handle a step: screenshot → vision LLM → coordinates → click
-
-## Architecture
+Every task flows through up to 3 layers. Each layer is cheaper and faster than the next. Most tasks never reach Layer 3.
 
 ```
-┌──────────────────────────────────────────────────┐
-│            Your Desktop (Native Control)          │
-│         @nut-tree-fork/nut-js · OS-level          │
-└──────────────────────┬───────────────────────────┘
-                       │ Native Screen Capture + Input
-┌──────────────────────┴───────────────────────────┐
-│              Clawd Cursor Agent                   │
-│                                                   │
-│  ┌─────────────┐          ┌────────────────────┐ │
-│  │  PATH A      │          │  PATH B            │ │
-│  │  Computer    │          │  Decompose +       │ │
-│  │  Use API     │          │  Action Router     │ │
-│  │              │          │                    │ │
-│  │  Claude sees │          │  Parse → subtasks  │ │
-│  │  screen,     │          │  UI Automation     │ │
-│  │  plans, acts │          │  (no LLM)          │ │
-│  │  natively    │          │  Vision fallback   │ │
-│  └──────┬───────┘          └────────┬───────────┘ │
-│         │ --provider anthropic      │ --provider  │
-│         │                           │ openai      │
-│         └───────────┬───────────────┘             │
-│                     ↓                             │
-│              Safety Layer                         │
-│              REST API / CLI                       │
-└───────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  Layer 1: Action Router (instant, free)              │
+│  Regex + UI Automation. "Open X", "type Y", "click Z"│
+│  Handles ~80% of simple tasks with ZERO LLM calls    │
+├─────────────────────────────────────────────────────┤
+│  Layer 2: Accessibility Reasoner (fast, cheap/free)   │
+│  Reads the accessibility tree, sends to cheap LLM     │
+│  (Haiku, Qwen, GPT-4o-mini). No screenshots needed   │
+├─────────────────────────────────────────────────────┤
+│  Layer 3: Screenshot + Vision (powerful, expensive)   │
+│  Full screenshot → vision LLM. Computer Use for       │
+│  Anthropic, vision fallback for OpenAI/others         │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Test Results (v0.4.0 — Computer Use)
+**The doctor decides which layers are available** based on your setup. No API key? Layers 1+2 with Ollama. Anthropic key? All 3 layers with Computer Use.
 
-| Task | Time | API Calls | Result |
-|------|------|-----------|--------|
-| Open Chrome → Google Docs → write sentence | 101.7s | 10 | ✅ |
-| GitHub profile → read repos → Notepad → save file | 156s | 18 | ✅ |
-| Open Paint → draw stick figure | ~45s | N/A (scripted) | ✅ |
+### Provider-Specific Behavior
+
+| Provider | Layer 1 | Layer 2 (text) | Layer 3 (vision) | Computer Use |
+|----------|---------|----------------|-------------------|-------------|
+| Anthropic | ✅ | Haiku or Qwen | Sonnet | ✅ Native |
+| OpenAI | ✅ | GPT-4o-mini | GPT-4o | ❌ |
+| Ollama | ✅ | Qwen 7B (free) | Limited | ❌ |
+| Kimi | ✅ | Moonshot-8k | Moonshot-8k | ❌ |
+| No key | ✅ | ❌ | ❌ | ❌ |
+
+### Self-Healing
+
+The pipeline adapts at runtime:
+- **Model fails?** → Circuit breaker trips, falls to next layer
+- **API rate limited?** → Exponential backoff + automatic retry
+- **Doctor detects issues?** → Falls back to available alternatives (e.g., Haiku unavailable → Ollama Qwen)
+
+---
+
+## Doctor
+
+```bash
+npx clawd-cursor doctor
+```
+
+```
+🩺 Clawd Cursor Doctor — diagnosing your setup...
+
+📸 Screen capture...
+   ✅ 2560x1440, 93ms
+♿ Accessibility bridge...
+   ✅ 17 windows detected, 761ms
+
+🔑 AI Provider: Anthropic
+   ✅ claude-haiku-4: 400ms
+   ✅ claude-sonnet-4: 1285ms
+
+🧠 Recommended pipeline:
+   Layer 1: Action Router (offline, instant) ✅
+   Layer 2: Accessibility Reasoner → claude-haiku-4 ✅
+   Layer 3: Screenshot → claude-sonnet-4 ✅
+   🖥️  Computer Use API: enabled
+
+💾 Config saved to .clawd-config.json
+```
+
+Options:
+```
+--provider <name>   Force a provider (anthropic|openai|ollama|kimi)
+--api-key <key>     Override API key
+--no-save           Don't save config to disk
+```
+
+---
 
 ## API Endpoints
 
@@ -166,60 +183,35 @@ The original v0.1.0 pipeline:
 | `/confirm` | POST | Approve/reject pending action |
 | `/abort` | POST | Stop the current task |
 
-## Manual Setup
+---
 
-If you prefer manual setup:
-
-### 1. Install Dependencies
-
-```bash
-npm install
-npm run build
-```
-
-### 2. Configure Environment Variables
-
-Copy `.env.example` to `.env` and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-### Environment Variables
-
-| Variable | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `AI_API_KEY` | **Yes** | Anthropic or OpenAI API key | `sk-ant-api03-...` |
-| `AI_PROVIDER` | No | AI provider: `anthropic` or `openai` | `anthropic` |
-| `ANTHROPIC_API_KEY` | No | Specific Anthropic API key (overrides AI_API_KEY) | `sk-ant-...` |
-| `OPENAI_API_KEY` | No | Specific OpenAI API key (overrides AI_API_KEY) | `sk-...` |
-
-### 3. Start the Agent
-
-```bash
-npm start
-```
-
-## Configuration
-
-### CLI Options
+## Architecture
 
 ```
---port <port>          API port (default: 3847)
---provider <provider>  anthropic (Computer Use) | openai (Action Router)
---model <model>        Vision model
---api-key <key>        AI provider API key
+┌───────────────────────────────────────────────────┐
+│           Your Desktop (Native Control)            │
+│        @nut-tree-fork/nut-js · OS-level            │
+└──────────────────────┬────────────────────────────┘
+                       │
+┌──────────────────────┴────────────────────────────┐
+│              Clawd Cursor Agent                    │
+│                                                    │
+│  ┌──────────┐  ┌──────────────┐  ┌─────────────┐ │
+│  │ Layer 1   │  │ Layer 2       │  │ Layer 3     │ │
+│  │ Action    │→ │ Accessibility │→ │ Screenshot  │ │
+│  │ Router    │  │ Reasoner      │  │ + Vision    │ │
+│  │ (free)    │  │ (cheap/free)  │  │ (powerful)  │ │
+│  └──────────┘  └──────────────┘  └─────────────┘ │
+│       ↑                                            │
+│  ┌──────────┐                                     │
+│  │ Doctor   │ ← Auto-configures pipeline          │
+│  └──────────┘                                     │
+│                                                    │
+│  Safety Layer · REST API · Circuit Breaker         │
+└────────────────────────────────────────────────────┘
 ```
 
-### Environment Variables
-
-All CLI options can be set in `.env`:
-
-```env
-AI_API_KEY=sk-ant-api03-...
-AI_PROVIDER=anthropic
-AI_MODEL=claude-sonnet-4-20250514
-```
+---
 
 ## Safety Tiers
 
@@ -229,19 +221,30 @@ AI_MODEL=claude-sonnet-4-20250514
 | 🟡 Preview | Typing, form filling | Logs before executing |
 | 🔴 Confirm | Sending messages, deleting, purchases | Pauses for approval |
 
+## CLI Options
+
+```
+clawd-cursor start      Start the agent
+clawd-cursor doctor     Diagnose and auto-configure
+clawd-cursor task <t>   Send a task to running agent
+
+Options:
+  --port <port>          API port (default: 3847)
+  --provider <provider>  anthropic|openai|ollama|kimi
+  --model <model>        Override vision model
+  --api-key <key>        AI provider API key
+  --debug                Save screenshots to debug/ folder
+```
+
 ## Prerequisites
 
 - **Node.js 20+**
-- **PowerShell** (Windows) — for UI Automation features (Path B)
-- **AI API Key** — Anthropic recommended for Computer Use (Path A). OpenAI optional for Path B. Works offline for common tasks via Action Router.
+- **PowerShell** (Windows) or **osascript** (macOS) — for accessibility features
+- **AI API Key** — optional. Works offline with Ollama or Action Router only.
 
 ## Tech Stack
 
-TypeScript · Node.js · @nut-tree-fork/nut-js (native desktop control) · sharp (screenshots) · Express + WebSocket · Anthropic Computer Use API · Windows UI Automation via PowerShell
-
-## ClaWHub
-
-Coming soon to ClaWHub — install with `openclaw skills install clawd-cursor`
+TypeScript · Node.js · @nut-tree-fork/nut-js · sharp · Express · Anthropic Computer Use API · Windows UI Automation · Ollama
 
 ## License
 
