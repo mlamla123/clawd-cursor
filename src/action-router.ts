@@ -9,6 +9,7 @@
 import * as os from 'os';
 import { AccessibilityBridge } from './accessibility';
 import { NativeDesktop } from './native-desktop';
+import { normalizeKey } from './keys';
 import type { WindowInfo } from './accessibility';
 
 const PLATFORM = os.platform();
@@ -342,9 +343,17 @@ export class ActionRouter {
         await this.a11y.focusWindow(undefined, browser.processId);
         await this.delay(300);
       } else {
-        // No browser running — launch default browser via Start
-        await this.launchViaStartMenu('Chrome');
+        // No browser running — launch default browser via OS default handler
+        const { exec: execCb } = await import('child_process');
+        const launchCmd = PLATFORM === 'darwin' ? `open "${fullUrl}"` : `start "" "${fullUrl}"`;
+        await new Promise<void>((resolve, reject) => {
+          execCb(launchCmd, (err) => err ? reject(err) : resolve());
+        });
         await this.delay(2000);
+        return {
+          handled: true,
+          description: `Opened ${fullUrl} in default browser`,
+        };
       }
 
       // Ctrl+L to focus address bar, then type URL
@@ -509,31 +518,7 @@ export class ActionRouter {
   // ─── Handler: Key Press ────────────────────────────────────────────
 
   private async handleKeyPress(keyDesc: string): Promise<RouteResult> {
-    // Normalize common key names
-    const keyMap: Record<string, string> = {
-      'enter': 'Return',
-      'return': 'Return',
-      'esc': 'Escape',
-      'escape': 'Escape',
-      'tab': 'Tab',
-      'backspace': 'Backspace',
-      'delete': 'Delete',
-      'space': ' ',
-      'spacebar': ' ',
-      'up': 'Up',
-      'down': 'Down',
-      'left': 'Left',
-      'right': 'Right',
-      'home': 'Home',
-      'end': 'End',
-      'page up': 'PageUp',
-      'page down': 'PageDown',
-      'windows': 'Super',
-      'win': 'Super',
-    };
-
-    const normalized = keyDesc.toLowerCase();
-    const mapped = keyMap[normalized] || keyDesc;
+    const mapped = normalizeKey(keyDesc);
 
     try {
       await this.desktop.keyPress(mapped);

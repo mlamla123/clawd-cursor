@@ -3,7 +3,7 @@
 /**
  * 🐾 Clawd Cursor — AI Desktop Agent
  *
- * Your AI controls your desktop natively — no VNC server needed.
+ * Your AI controls your desktop natively.
  */
 
 import { Command } from 'commander';
@@ -20,7 +20,7 @@ const program = new Command();
 program
   .name('clawd-cursor')
   .description('🐾 AI Desktop Agent — native screen control')
-  .version('0.5.0');
+  .version('0.5.1');
 
 program
   .command('start')
@@ -39,7 +39,7 @@ program
       },
       ai: {
         provider: opts.provider as any,
-        apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+        apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
         model: opts.model || DEFAULT_CONFIG.ai.model,
         visionModel: opts.model || DEFAULT_CONFIG.ai.visionModel,
       },
@@ -48,7 +48,7 @@ program
 
     console.log(`
 🐾 ╔═══════════════════════════════════════╗
-   ║       CLAWD CURSOR v0.5.0             ║
+   ║       CLAWD CURSOR v0.5.1             ║
    ║   AI Desktop Agent — Smart Pipeline   ║
    ╚═══════════════════════════════════════╝
 `);
@@ -93,10 +93,29 @@ program
   .action(async (opts) => {
     const { runDoctor } = await import('./doctor');
     await runDoctor({
-      apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+      apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
       provider: opts.provider,
       save: opts.save !== false,
     });
+  });
+
+program
+  .command('stop')
+  .description('Stop a running Clawd Cursor instance')
+  .option('--port <port>', 'API server port', '3847')
+  .action(async (opts) => {
+    const url = `http://127.0.0.1:${opts.port}/stop`;
+    try {
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json() as any;
+      if (data.stopped) {
+        console.log('🐾 Clawd Cursor stopped');
+      } else {
+        console.error('Unexpected response:', JSON.stringify(data));
+      }
+    } catch {
+      console.error('No running instance found');
+    }
   });
 
 program

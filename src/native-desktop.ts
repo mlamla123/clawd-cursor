@@ -1,8 +1,7 @@
 /**
- * Native Desktop Control — replaces VNC with direct OS-level input
- * using @nut-tree/nut-js for mouse/keyboard and screen capture.
+ * Native Desktop Control — direct OS-level input
+ * using @nut-tree-fork/nut-js for mouse/keyboard and screen capture.
  *
- * Drop-in replacement for VNCClient with the same public interface.
  * No network connection needed — controls the local desktop directly.
  *
  * - captureScreen() returns full-resolution frames
@@ -13,12 +12,12 @@
 import { EventEmitter } from 'events';
 import sharp from 'sharp';
 import { mouse, keyboard, screen, Button, Key, Point } from '@nut-tree-fork/nut-js';
+import { normalizeKey } from './keys';
 import type { ClawdConfig, ScreenFrame, MouseAction, KeyboardAction } from './types';
 
-// nut-js Key enum mapping from string key names
+// nut-js Key enum mapping from canonical key names (see keys.ts for normalization)
 const KEY_MAP: Record<string, Key> = {
   'Return': Key.Enter,
-  'Enter': Key.Enter,
   'Tab': Key.Tab,
   'Escape': Key.Escape,
   'Backspace': Key.Backspace,
@@ -36,19 +35,15 @@ const KEY_MAP: Record<string, Key> = {
   'F9': Key.F9, 'F10': Key.F10, 'F11': Key.F11, 'F12': Key.F12,
   'Shift': Key.LeftShift,
   'Control': Key.LeftControl,
-  'ctrl': Key.LeftControl,
   'Alt': Key.LeftAlt,
-  'alt': Key.LeftAlt,
-  'Meta': Key.LeftSuper,
   'Super': Key.LeftSuper,
-  'Win': Key.LeftSuper,
-  'Windows': Key.LeftSuper,
   'Space': Key.Space,
-  'space': Key.Space,
 };
 
 /** LLM screenshot target width — smaller = faster API calls + fewer tokens */
-const LLM_TARGET_WIDTH = 1024;
+// Higher resolution = better tool/icon identification. 1280 is Anthropic's recommended max.
+// At 2560 screen: 1280 → scale 2x (was 1024 → 2.5x). Icons go from ~12px to ~20px.
+const LLM_TARGET_WIDTH = 1280;
 
 export class NativeDesktop extends EventEmitter {
   private config: ClawdConfig;
@@ -181,6 +176,7 @@ export class NativeDesktop extends EventEmitter {
    * Capture a CROPPED region of the screen, resized for LLM.
    * Coordinates are in REAL screen pixels.
    * Returns the cropped image at higher effective resolution (more detail per pixel).
+   * @future — not yet used; intended for focused region analysis
    */
   async captureRegionForLLM(
     x: number, y: number, w: number, h: number
@@ -195,7 +191,7 @@ export class NativeDesktop extends EventEmitter {
     const rw = Math.min(w, img.width - rx);
     const rh = Math.min(h, img.height - ry);
 
-    // Scale crop to LLM-sized output (max 1024px wide)
+    // Scale crop to LLM-sized output (max 1280px wide)
     const cropScale = rw > LLM_TARGET_WIDTH ? rw / LLM_TARGET_WIDTH : 1;
     const llmWidth = Math.min(rw, LLM_TARGET_WIDTH);
     const llmHeight = Math.round(rh / cropScale);
@@ -420,11 +416,12 @@ export class NativeDesktop extends EventEmitter {
     await mouse.pressButton(btn);
   }
 
-  async mouseUp(x: number, y: number): Promise<void> {
+  async mouseUp(x: number, y: number, button: number = 1): Promise<void> {
     if (!this.connected) throw new Error('Not connected');
     console.log(`   🖱️  Mouse up at (${x}, ${y})`);
     await mouse.setPosition(new Point(x, y));
-    await mouse.releaseButton(Button.LEFT);
+    const btn = this.mapButton(button);
+    await mouse.releaseButton(btn);
   }
 
   async mouseDrag(sx: number, sy: number, ex: number, ey: number): Promise<void> {
@@ -481,15 +478,12 @@ export class NativeDesktop extends EventEmitter {
    * Falls back to character-based lookup for single characters.
    */
   private mapKey(keyName: string): Key {
-    // Direct lookup in our map
-    const mapped = KEY_MAP[keyName];
-    if (mapped !== undefined) return mapped;
+    // Normalize via canonical key names first
+    const normalized = normalizeKey(keyName);
 
-    // Case-insensitive lookup
-    const lowerKey = keyName.toLowerCase();
-    for (const [name, val] of Object.entries(KEY_MAP)) {
-      if (name.toLowerCase() === lowerKey) return val;
-    }
+    // Direct lookup in our map
+    const mapped = KEY_MAP[normalized];
+    if (mapped !== undefined) return mapped;
 
     // Single character — try to find matching Key enum entry
     if (keyName.length === 1) {
@@ -511,8 +505,7 @@ export class NativeDesktop extends EventEmitter {
     const enumKey = keyName as keyof typeof Key;
     if (Key[enumKey] !== undefined) return Key[enumKey];
 
-    console.warn(`   ⚠️  Unknown key: "${keyName}", falling back to Key.Space`);
-    return Key.Space;
+    throw new Error(`Unknown key: "${keyName}" — no mapping found in KEY_MAP or Key enum`);
   }
 
   private delay(ms: number): Promise<void> {

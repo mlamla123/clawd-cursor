@@ -1,5 +1,5 @@
 /**
- * Test script for accessibility bridge — runs standalone, no VNC needed.
+ * Test script for accessibility bridge — runs standalone.
  * Usage: node dist/test-a11y.js
  */
 
@@ -61,15 +61,15 @@ async function main() {
     console.error('❌ FAIL:', err);
   }
 
-  // Test 5: Get UI tree for a specific window
-  console.log('━━━ Test 5: UI Tree ━━━');
+  // Test 5: Get screen context for a specific window
+  console.log('━━━ Test 5: Screen Context (focused window) ━━━');
   try {
     const windows = await a11y.getWindows();
     const nonMinimized = windows.find(w => !w.isMinimized);
     if (nonMinimized) {
-      console.log(`Getting UI tree for "${nonMinimized.title}" (pid: ${nonMinimized.processId})...`);
-      const tree = await a11y.getUITree(nonMinimized.processId, 2);
-      console.log(JSON.stringify(tree, null, 2).substring(0, 1000));
+      console.log(`Getting screen context for "${nonMinimized.title}" (pid: ${nonMinimized.processId})...`);
+      const context = await a11y.getScreenContext(nonMinimized.processId);
+      console.log(context.substring(0, 1000));
       console.log('✅ PASS\n');
     }
   } catch (err) {

@@ -29,7 +29,6 @@ const SCRIPT_MAP: Record<string, Record<string, string>> = {
     'invoke-element': 'invoke-element.ps1',
     'focus-window': 'focus-window.ps1',
     'get-foreground-window': 'get-foreground-window.ps1',
-    'get-ui-tree': 'get-ui-tree.ps1',
     'get-screen-context': 'get-screen-context.ps1',
   },
   darwin: {
@@ -166,16 +165,6 @@ export class AccessibilityBridge {
   invalidateCache(): void {
     this.windowCache = null;
     this.screenContextCache = null;
-  }
-
-  /**
-   * Get UI tree for a window (or all top-level if no processId)
-   */
-  async getUITree(processId?: number, maxDepth = 3): Promise<UIElement[]> {
-    const args: string[] = [];
-    if (processId) args.push('-ProcessId', String(processId));
-    args.push('-MaxDepth', String(maxDepth));
-    return this.runScript('get-ui-tree.ps1', args);
   }
 
   /**
@@ -388,7 +377,9 @@ export class AccessibilityBridge {
 
         if (focusedProcessId) {
           try {
-            const tree = await this.getUITree(focusedProcessId, 2);
+            const args = ['-FocusedProcessId', String(focusedProcessId), '-MaxDepth', '2'];
+            const result = await this.runScript('get-screen-context.ps1', args);
+            const tree = result?.uiTree ? [result.uiTree] : [];
             context += `\nFOCUSED WINDOW UI TREE (pid:${focusedProcessId}):\n`;
             context += this.formatTree(Array.isArray(tree) ? tree : [tree], '  ');
           } catch { /* tree query failed, skip */ }

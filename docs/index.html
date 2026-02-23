@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+
         :root {
             --bg: #09090b;
             --bg2: #111113;
@@ -44,54 +44,7 @@
         a { color: var(--accent); text-decoration: none; }
         a:hover { color: var(--accent2); }
 
-        /* Nav */
-        nav {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: rgba(9,9,11,0.8);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border);
-        }
-        .nav-inner {
-            max-width: 1000px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 52px;
-            padding: 0 24px;
-        }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            color: var(--text);
-        }
-        .logo-icon svg { width: 24px; height: 24px; }
-        .logo-text { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
-        .nav-links { display: flex; gap: 4px; align-items: center; }
-        .nav-links a {
-            color: var(--text2);
-            font-size: 0.8rem;
-            font-weight: 500;
-            padding: 5px 12px;
-            border-radius: 6px;
-            transition: all 0.15s;
-        }
-        .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-        .nav-cta {
-            background: rgba(255,255,255,0.08) !important;
-            color: var(--text) !important;
-            padding: 5px 14px !important;
-            border-radius: 16px !important;
-            border: 1px solid var(--border2);
-            font-weight: 600 !important;
-            margin-left: 4px;
-        }
-        .nav-cta:hover { background: rgba(255,255,255,0.12) !important; }
+        /* Nav removed */
 
         .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
 
@@ -554,7 +507,6 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            .nav-links a:not(.nav-cta) { display: none; }
             .stats { grid-template-columns: repeat(3, 1fr); }
             .stat:nth-child(4), .stat:nth-child(5) { display: none; }
             .hero h1 { font-size: 2rem; }
@@ -685,38 +637,14 @@
         <div class="ai-ripple"></div>
     </div>
 
-    <nav>
-        <div class="nav-inner">
-            <a href="/" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 36 36" fill="none">
-                        <path d="M4 4L16 32L20 20L32 16L4 4Z" fill="url(#lg)" stroke="url(#ls)" stroke-width="1.5" stroke-linejoin="round"/>
-                        <path d="M22 9L28 3" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
-                        <path d="M25 13L33 7" stroke="#06b6d4" stroke-width="2" stroke-linecap="round"/>
-                        <path d="M20 7L24 1" stroke="#a855f7" stroke-width="2" stroke-linecap="round"/>
-                        <defs>
-                            <linearGradient id="lg" x1="4" y1="4" x2="32" y2="32"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
-                            <linearGradient id="ls" x1="4" y1="4" x2="32" y2="32"><stop stop-color="#4ade80"/><stop offset="1" stop-color="#3b82f6"/></linearGradient>
-                        </defs>
-                    </svg>
-                </div>
-                <span class="logo-text">Clawd Cursor</span>
-            </a>
-            <div class="nav-links">
-                <a href="#how">How it works</a>
-                <a href="#features">Features</a>
-                <a href="#install">Install</a>
-                <a href="https://github.com/AmrDab/clawd-cursor" class="nav-cta">GitHub</a>
-            </div>
-        </div>
-    </nav>
+    <!-- nav removed -->
 
     <div class="wrap">
         <!-- Hero -->
         <div class="hero">
-            <div class="hero-badge"><div class="pulse"></div> v0.5.0 — Smart Pipeline + Doctor</div>
+            <div class="hero-badge"><div class="pulse"></div> v0.5.1 - Smart Pipeline + HD Vision</div>
             <h1>One skill replaces<br><span class="gr">a dozen APIs</span></h1>
-            <p>Give your agent a screen. Gmail, Slack, Jira, Figma — if you can click it, your agent can too. Native desktop control. No servers. No API keys per service.</p>
+            <p>Give your agent a screen. Gmail, Slack, Jira, Figma - if you can click it, your agent can too. Native desktop control. No servers. No API keys per service.</p>
             <div class="hero-btns">
                 <a href="https://github.com/AmrDab/clawd-cursor" class="btn-p">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -762,15 +690,15 @@
         <!-- Three Layers -->
         <section id="how" class="sect">
             <div class="sect-label">Three Layers</div>
-            <h2>Instant, smart, or bulletproof — pick the right layer</h2>
+            <h2>Instant, smart, or bulletproof - pick the right layer</h2>
             <p class="sub">Three pipeline layers. Each task falls to the cheapest layer that can handle it.</p>
             <div class="modes-grid" style="grid-template-columns: 1fr 1fr 1fr;">
                 <div class="mode-card a">
-                    <h3>Layer 1 — Action Router</h3>
+                    <h3>Layer 1 - Action Router</h3>
                     <ol>
                         <li>Regex + pattern matching on task text</li>
                         <li>Query native accessibility tree</li>
-                        <li>Find element by name — click directly</li>
+                        <li>Find element by name - click directly</li>
                         <li>Zero LLM calls needed</li>
                         <li>Instant execution, completely free</li>
                     </ol>
@@ -780,12 +708,12 @@
                     </div>
                 </div>
                 <div class="mode-card b">
-                    <h3>Layer 2 — Accessibility Reasoner</h3>
+                    <h3>Layer 2 - Accessibility Reasoner</h3>
                     <ol>
                         <li>Reads the UI Automation tree (text-only)</li>
                         <li>Sends tree to a text LLM (Ollama or cloud)</li>
                         <li>LLM reasons about which element to act on</li>
-                        <li>No screenshots needed — cheap or free</li>
+                        <li>No screenshots needed - cheap or free</li>
                         <li>Handles moderate complexity tasks</li>
                     </ol>
                     <div class="mode-stats">
@@ -794,7 +722,7 @@
                     </div>
                 </div>
                 <div class="mode-card a">
-                    <h3>Layer 3 — Screenshot + Vision</h3>
+                    <h3>Layer 3 - Screenshot + Vision</h3>
                     <ol>
                         <li>Full task sent to vision LLM with screenshot</li>
                         <li>Claude Computer Use or vision model fallback</li>
@@ -814,19 +742,19 @@
         <section class="sect">
             <div class="sect-label">Performance</div>
             <h2>Real benchmarks, real tasks</h2>
-            <p class="sub">No cherry-picking. v0.5.0 smart pipeline benchmarks.</p>
+            <p class="sub">No cherry-picking. v0.5.1 smart pipeline benchmarks.</p>
             <div class="metrics-grid">
                 <div class="metric-card">
                     <div class="metric-tag">Action Router</div>
                     <div class="metric-big">~2s</div>
-                    <div class="metric-desc">Simple tasks — open, click, type</div>
+                    <div class="metric-desc">Simple tasks - open, click, type</div>
                     <div class="metric-pills"><span class="pill g">$0 cost</span><span class="pill">Zero LLM</span></div>
                 </div>
                 <div class="metric-card">
                     <div class="metric-tag">Screenshot</div>
                     <div class="metric-big">~57ms</div>
-                    <div class="metric-desc">Native capture — 58KB payload, optimized for LLMs</div>
-                    <div class="metric-pills"><span class="pill g">Native</span><span class="pill b">58KB payload</span></div>
+                    <div class="metric-desc">Native capture — HD 1280px, optimized for LLMs</div>
+                    <div class="metric-pills"><span class="pill g">Native</span><span class="pill b">1280px HD</span></div>
                 </div>
                 <div class="metric-card hl">
                     <div class="metric-tag">Success Rate</div>
@@ -862,7 +790,7 @@
                 <div class="feat-card">
                     <div class="feat-icon">&#x1F50D;</div>
                     <h4>UI Automation Tree</h4>
-                    <p>Queries native accessibility APIs to find buttons, menus, inputs by name — not pixel coordinates.</p>
+                    <p>Queries native accessibility APIs to find buttons, menus, inputs by name - not pixel coordinates.</p>
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">&#x26A1;</div>
@@ -872,12 +800,12 @@
                 <div class="feat-card">
                     <div class="feat-icon">&#x1F9E0;</div>
                     <h4>Native Computer Use</h4>
-                    <p>Claude gets native desktop tools — screenshot, click, type, scroll, drag. Fully autonomous.</p>
+                    <p>Claude gets native desktop tools - screenshot, click, type, scroll, drag. Fully autonomous.</p>
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">&#x1F4F8;</div>
                     <h4>Adaptive Screenshots</h4>
-                    <p>Scaled to 1280×720 for the API. ~57ms native capture, 58KB payload. Adaptive delays per action type.</p>
+                    <p>Scaled to 1280×720 for the API. ~57ms native capture, HD quality for reliable icon identification. Adaptive delays per action type.</p>
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">&#x1F6E1;</div>
@@ -915,7 +843,7 @@
         <section id="install" class="sect">
             <div class="sect-label">Get Started</div>
             <h2>Up and running in 2 minutes</h2>
-            <p class="sub">Just point your AI assistant to clawdcursor.com — or run it manually:</p>
+            <p class="sub">Just point your AI assistant to clawdcursor.com - or run it manually:</p>
             <div class="code-box">
                 <div class="code-hd">
                     <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
@@ -948,6 +876,55 @@
     </div>
 
     <!-- Contact Modal -->
+    <!-- Version History -->
+    <div class="wrap" style="padding-top:48px;padding-bottom:48px;">
+        <h2 style="font-size:1.6rem;font-weight:800;letter-spacing:-0.03em;text-align:center;margin-bottom:8px;">Version History</h2>
+        <p style="color:var(--text2);text-align:center;font-size:0.85rem;margin-bottom:32px;">Every release, from day one.</p>
+        <div style="max-width:600px;margin:0 auto;display:flex;flex-direction:column;gap:0;position:relative;">
+            <div style="position:absolute;left:7px;top:12px;bottom:12px;width:2px;background:var(--border2);"></div>
+
+            <div style="display:flex;gap:16px;align-items:flex-start;padding:12px 0;">
+                <div style="width:16px;height:16px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:2px;z-index:1;"></div>
+                <div>
+                    <div style="font-weight:700;font-size:0.95rem;">v0.5.1 <span style="color:var(--text3);font-weight:400;font-size:0.8rem;margin-left:8px;">Feb 23, 2026</span></div>
+                    <div style="color:var(--text2);font-size:0.85rem;">HD screenshots (1280px), JPEG quality 65, window focus stability, Paint drawing 78% faster, stop command.</div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:16px;align-items:flex-start;padding:12px 0;">
+                <div style="width:16px;height:16px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:2px;z-index:1;"></div>
+                <div>
+                    <div style="font-weight:700;font-size:0.95rem;">v0.5.0 <span style="color:var(--text3);font-weight:400;font-size:0.8rem;margin-left:8px;">Feb 23, 2026</span></div>
+                    <div style="color:var(--text2);font-size:0.85rem;">Smart 3-layer pipeline, doctor CLI, multi-provider (Anthropic/OpenAI/Ollama/Kimi), batch execution (3.6 actions/call), self-healing diagnostics.</div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:16px;align-items:flex-start;padding:12px 0;">
+                <div style="width:16px;height:16px;border-radius:50%;background:var(--purple);flex-shrink:0;margin-top:2px;z-index:1;"></div>
+                <div>
+                    <div style="font-weight:700;font-size:0.95rem;">v0.4.0 <span style="color:var(--text3);font-weight:400;font-size:0.8rem;margin-left:8px;">Feb 22, 2026</span></div>
+                    <div style="color:var(--text2);font-size:0.85rem;">Native desktop control via nut-js. Removed VNC dependency. 53% faster benchmarks. Compressed screenshots, streaming LLM, trimmed prompts.</div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:16px;align-items:flex-start;padding:12px 0;">
+                <div style="width:16px;height:16px;border-radius:50%;background:var(--orange);flex-shrink:0;margin-top:2px;z-index:1;"></div>
+                <div>
+                    <div style="font-weight:700;font-size:0.95rem;">v0.3.x <span style="color:var(--text3);font-weight:400;font-size:0.8rem;margin-left:8px;">Mar 2025</span></div>
+                    <div style="color:var(--text2);font-size:0.85rem;">VNC-based desktop control, accessibility bridge, safety tiers, action router with pattern matching.</div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:16px;align-items:flex-start;padding:12px 0;">
+                <div style="width:16px;height:16px;border-radius:50%;background:var(--text3);flex-shrink:0;margin-top:2px;z-index:1;"></div>
+                <div>
+                    <div style="font-weight:700;font-size:0.95rem;">v0.1.0 – v0.2.0 <span style="color:var(--text3);font-weight:400;font-size:0.8rem;margin-left:8px;">Jan–Feb 2025</span></div>
+                    <div style="color:var(--text2);font-size:0.85rem;">Initial release. VNC connection, basic mouse/keyboard, screenshot capture, Anthropic Computer Use integration.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="contactModal" class="modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -972,7 +949,7 @@
     </div>
 
     <footer>
-        <p>Clawd Cursor — MIT License — <button class="contact-btn" onclick="openModal()">Contact</button> — Built by <a href="https://github.com/AmrDab">Amr Dab</a></p>
+        <p>Clawd Cursor - MIT License - <button class="contact-btn" onclick="openModal()">Contact</button> - Built by <a href="https://github.com/AmrDab">Amr Dab</a></p>
     </footer>
 
     <script>

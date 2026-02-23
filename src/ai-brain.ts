@@ -277,16 +277,19 @@ export class AIBrain {
 
   // ─── LLM Calls ────────────────────────────────────────────────────
 
+  private static readonly BASE_URLS: Record<string, string> = {
+    ollama: 'http://localhost:11434/v1',
+    kimi: 'https://api.moonshot.cn/v1',
+    openai: 'https://api.openai.com/v1',
+  };
+
   private async callLLM(systemPrompt: string): Promise<string> {
     const { provider, apiKey, visionModel } = this.config.ai;
 
     if (provider === 'anthropic') {
       return this.callAnthropic(systemPrompt, apiKey!, visionModel);
     } else {
-      // OpenAI-compatible: openai, ollama, kimi, etc.
-      const baseUrl = provider === 'ollama' ? 'http://localhost:11434/v1' :
-                      provider === 'kimi' ? 'https://api.moonshot.cn/v1' :
-                      'https://api.openai.com/v1';
+      const baseUrl = AIBrain.BASE_URLS[provider] || AIBrain.BASE_URLS['openai'];
       return this.callOpenAICompat(systemPrompt, apiKey || '', visionModel, baseUrl);
     }
   }
@@ -334,10 +337,7 @@ export class AIBrain {
       }
       throw new Error('LLM text call failed after retries');
     } else {
-      // OpenAI-compatible: openai, ollama, kimi, etc.
-      const baseUrl = provider === 'ollama' ? 'http://localhost:11434/v1' :
-                      provider === 'kimi' ? 'https://api.moonshot.cn/v1' :
-                      'https://api.openai.com/v1';
+      const baseUrl = AIBrain.BASE_URLS[provider] || AIBrain.BASE_URLS['openai'];
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -370,6 +370,9 @@ export class AIBrain {
       content: turn.content,
     }));
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -384,13 +387,17 @@ export class AIBrain {
         system: systemPrompt,
         messages,
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
+      clearTimeout(timeout);
       const data = await response.json() as any;
       console.error('Anthropic API error:', data.error);
       throw new Error(data.error?.message || `Anthropic API error (${response.status})`);
     }
+
+    clearTimeout(timeout);
 
     // Stream response — collect text as it arrives
     let result = '';

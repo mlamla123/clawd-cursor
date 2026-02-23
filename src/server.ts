@@ -78,7 +78,25 @@ export function createServer(agent: Agent, config: ClawdConfig): express.Express
 
   // Health check
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok', version: '0.5.0' });
+    res.json({ status: 'ok', version: '0.5.1' });
+  });
+
+  // Graceful shutdown (localhost only)
+  app.post('/stop', (req, res) => {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    if (!isLocal) {
+      return res.status(403).json({ error: 'Stop is only allowed from localhost' });
+    }
+
+    res.json({ stopped: true, message: 'Clawd Cursor stopped' });
+
+    // Graceful shutdown after response is sent
+    setTimeout(() => {
+      console.log('\n👋 Shutting down (stop command received)...');
+      agent.disconnect();
+      process.exit(0);
+    }, 100);
   });
 
   return app;

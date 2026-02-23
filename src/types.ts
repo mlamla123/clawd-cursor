@@ -78,18 +78,12 @@ export interface AgentState {
 }
 
 export interface ClawdConfig {
-  /** @deprecated VNC no longer required — NativeDesktop controls the local screen directly */
-  vnc?: {
-    host: string;
-    port: number;
-    password: string;
-  };
   server: {
     port: number;
     host: string;
   };
   ai: {
-    provider: 'openclaw' | 'anthropic' | 'openai' | 'ollama' | 'kimi';
+    provider: 'anthropic' | 'openai' | 'ollama' | 'kimi';
     apiKey?: string;
     model: string;
     visionModel: string;
@@ -102,18 +96,12 @@ export interface ClawdConfig {
   capture: {
     format: 'png' | 'jpeg';
     quality: number;
-    maxWidth: number;
   };
   /** Save screenshots to debug/ folder. Off by default for security. */
   debug?: boolean;
 }
 
 export const DEFAULT_CONFIG: ClawdConfig = {
-  vnc: {
-    host: 'localhost',
-    port: 5900,
-    password: '',
-  },
   server: {
     port: 3847,
     host: '127.0.0.1',
@@ -130,7 +118,6 @@ export const DEFAULT_CONFIG: ClawdConfig = {
   },
   capture: {
     format: 'jpeg',
-    quality: 55,
-    maxWidth: 0,
+    quality: 65,
   },
 };

@@ -2,6 +2,22 @@
 
 All notable changes to Clawd Cursor will be documented in this file.
 
+## [0.5.1] - 2026-02-23 — HD Screenshots + Focus Stability
+
+### Fixed
+- **HD screenshots** — LLM resolution increased from 1024px to 1280px (scale 2x instead of 2.5x). Claude can now reliably identify toolbar icons, buttons, and small UI elements.
+- **JPEG quality** — bumped from 55 to 65 for clearer icon identification
+- **Window focus stability** — `Win+D` minimizes all windows before task execution, preventing the Clawd terminal from stealing focus from target apps
+- **Paint drawing reliability** — pencil tool guidance in system prompt, mandatory checkpoint after tool selection
+- **Stale file cleanup** — restored `get-windows.ps1` shim (still referenced by accessibility.ts), removed dead `setup.ps1` and `get-ui-tree.ps1`
+
+### Performance (Paint stickman benchmark)
+| Metric | v0.5.0 | v0.5.1 |
+|--------|--------|--------|
+| Time | ~250s | **55s** |
+| API calls | 30 | **6** |
+| Success rate | ~50% | ~90% |
+
 ## [0.5.0] - 2026-02-23 — Smart Pipeline + Doctor + Batch Execution
 
 ### Added
@@ -21,8 +37,8 @@ All notable changes to Clawd Cursor will be documented in this file.
 - **Benchmark harness** (`test-perf-comparison.ts`)
 
 ### Performance
-- Screenshots: 120KB → 58KB (52% smaller), 1280px → 1024px target
-- JPEG quality: 70 → 55
+- Screenshots: 120KB → ~80KB, 1280px target (HD for reliable icon identification)
+- JPEG quality: 70 → 65
 - Delays: 200-1500ms → 50-600ms across the board
 - System prompts: ~60% smaller (fewer tokens per call)
 - Accessibility tree: filtered to interactive elements only, 3000 char cap

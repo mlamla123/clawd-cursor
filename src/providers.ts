@@ -71,8 +71,8 @@ export function detectProvider(apiKey: string, explicitProvider?: string): strin
 
   if (!apiKey) return 'ollama'; // No key = local mode
   if (apiKey.startsWith('sk-ant-')) return 'anthropic';
+  if (apiKey.startsWith('sk-') && apiKey.length > 60) return 'kimi'; // Kimi keys are longer than OpenAI
   if (apiKey.startsWith('sk-')) return 'openai';
-  if (apiKey.startsWith('sk-') && apiKey.length > 60) return 'kimi'; // Kimi keys are longer
 
   return 'openai'; // Default fallback
 }

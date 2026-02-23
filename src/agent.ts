@@ -30,7 +30,7 @@ import { ComputerUseBrain } from './computer-use';
 import { A11yReasoner } from './a11y-reasoner';
 import { loadPipelineConfig } from './doctor';
 import type { PipelineConfig } from './providers';
-import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction, ActionSequence, A11yAction } from './types';
+import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction, A11yAction } from './types';
 
 const MAX_STEPS = 15;
 const MAX_SIMILAR_ACTION = 3;
@@ -156,6 +156,12 @@ export class Agent {
     startTime: number,
   ): Promise<TaskResult> {
     console.log(`   🖥️  Using Computer Use API (screenshot-first)\n`);
+
+    // Minimize all windows so target apps get clean focus
+    try {
+      await this.desktop.keyPress('Super+d');
+      await new Promise(r => setTimeout(r, 500));
+    } catch { /* non-critical */ }
 
     this.state.status = 'acting';
     try {

@@ -18,7 +18,7 @@ import * as path from 'path';
 import { NativeDesktop } from './native-desktop';
 import { AccessibilityBridge } from './accessibility';
 import { SafetyLayer } from './safety';
-import { SafetyTier } from './types';
+import { normalizeKeyCombo } from './keys';
 import type { ClawdConfig, StepResult } from './types';
 
 const BETA_HEADER = 'computer-use-2025-01-24';
@@ -33,18 +33,20 @@ Use accessibility data to find exact element positions and verify state.
 
 CRITICAL — SPEED RULES:
 1. BATCH ACTIONS. Return multiple computer tool calls in ONE response whenever possible. This is the #1 speed optimization.
-2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes (opening app, dialog appearing, major navigation). Then batch all predictable actions without screenshots.
-3. Only request a screenshot when: (a) you opened a new app/dialog/page, (b) something might have failed, (c) you need to verify final results.
-4. After opening ANY app: send key "super+Up" to maximize it (ensures consistent full-screen layout).
-5. Prefer keyboard shortcuts over mouse clicks. Type instead of click when possible.
-6. For save/open dialogs: use ABSOLUTE paths (C:\Users\...) never environment variables (%USERPROFILE%).
-7. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area of the screenshot. Don't describe the entire screen.
+2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes. Then batch all predictable actions without screenshots.
+3. MANDATORY screenshots: (a) after opening any app/dialog/page, (b) after selecting a tool/mode/tab in ANY app, (c) before starting repetitive actions (to confirm setup is correct), (d) to verify final results.
+4. NEVER batch a tool/mode selection click together with the actions that depend on it. Always verify the tool is selected first.
+5. After opening ANY app: send key "super+Up" to maximize it (ensures consistent full-screen layout).
+6. Prefer keyboard shortcuts over mouse clicks. Type instead of click when possible.
+7. For save/open dialogs: use ABSOLUTE paths (C:\Users\...) never environment variables (%USERPROFILE%).
+8. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area of the screenshot. Don't describe the entire screen.
 
 PATTERNS:
 - Open app: key "super" + type name + key "Return" + wait 2s + key "super+Up" (maximize) — all in one response
 - Navigate URL: key "ctrl+l" + type full URL + key "Return" — all in one response
 - Fill forms: tab between fields + type values — batch the entire form in one response
-- Repetitive actions (drawing, data entry, clicking multiple items): batch ALL of them in one response after verifying the first one works
+- Repetitive actions (drawing, data entry, clicking multiple items): FIRST verify setup (tool selected, right window), THEN batch ALL repetitive actions in one response
+- Drawing in Paint: Use the PENCIL tool (first tool in toolbar, leftmost). Draw circles as connected line segments (hexagon). Do NOT try to find shape tools — they are too small to identify reliably. Select pencil, verify it's selected, then batch all draws.
 - Save file: key "ctrl+s", wait 1s, type absolute path, key "Return" — all in one response
 - Recovery: popup → Escape, wrong page → ctrl+l + correct URL, app frozen → alt+F4 + reopen
 
@@ -104,8 +106,9 @@ export class ComputerUseBrain {
     this.screenHeight = screen.height;
 
     // Scale factor MUST match NativeDesktop.captureForLLM() — use floating point, not ceil
-    this.scaleFactor = screen.width > 1024 ? screen.width / 1024 : 1;
-    this.llmWidth = Math.min(screen.width, 1024);
+    const LLM_WIDTH = 1280; // Must match native-desktop.ts LLM_TARGET_WIDTH
+    this.scaleFactor = screen.width > LLM_WIDTH ? screen.width / LLM_WIDTH : 1;
+    this.llmWidth = Math.min(screen.width, LLM_WIDTH);
     this.llmHeight = Math.round(screen.height / this.scaleFactor);
 
     console.log(`   🖥️  Computer Use: declaring ${this.llmWidth}x${this.llmHeight} display (scale ${this.scaleFactor}x from ${this.screenWidth}x${this.screenHeight})`);
@@ -405,6 +408,12 @@ export class ComputerUseBrain {
   private async executeAction(toolUse: ToolUseBlock): Promise<{ description: string; error?: string }> {
     const { action, coordinate, start_coordinate, text, key } = toolUse.input;
 
+    // Safety check — block actions matching blockedPatterns
+    const actionDesc = text || key || action;
+    if (this.safety.isBlocked(actionDesc)) {
+      return { description: `BLOCKED: ${actionDesc}`, error: `Action blocked by safety layer: ${actionDesc}` };
+    }
+
     // Null guard for actions that require coordinates
     const needsCoords = ['left_click', 'right_click', 'double_click', 'triple_click',
       'middle_click', 'mouse_move', 'left_mouse_down', 'left_mouse_up'];
@@ -447,7 +456,7 @@ export class ComputerUseBrain {
           const [x, y] = this.scale(coordinate!);
           await this.desktop.mouseDown(x, y, 2); // button 2 = middle
           await this.delay(50);
-          await this.desktop.mouseUp(x, y);
+          await this.desktop.mouseUp(x, y, 2);
           return { description: `Middle click at (${x}, ${y})` };
         }
 
@@ -623,39 +632,7 @@ export class ComputerUseBrain {
 
   /** Map Anthropic key names to nut-js key names */
   private mapKeyName(key: string): string {
-    const keyMap: Record<string, string> = {
-      'return': 'Return',
-      'enter': 'Return',
-      'space': ' ',
-      'tab': 'Tab',
-      'escape': 'Escape',
-      'backspace': 'Backspace',
-      'delete': 'Delete',
-      'up': 'Up',
-      'down': 'Down',
-      'left': 'Left',
-      'right': 'Right',
-      'home': 'Home',
-      'end': 'End',
-      'pageup': 'PageUp',
-      'page_up': 'PageUp',
-      'pagedown': 'PageDown',
-      'page_down': 'PageDown',
-      'super': 'Super',
-      'super_l': 'Super',
-      'win': 'Super',
-      'windows': 'Super',
-      'f1': 'F1', 'f2': 'F2', 'f3': 'F3', 'f4': 'F4',
-      'f5': 'F5', 'f6': 'F6', 'f7': 'F7', 'f8': 'F8',
-      'f9': 'F9', 'f10': 'F10', 'f11': 'F11', 'f12': 'F12',
-    };
-
-    // Handle modifier combos like "ctrl+c", "alt+f4"
-    if (key.includes('+')) {
-      return key.split('+').map(k => keyMap[k.trim().toLowerCase()] || k.trim()).join('+');
-    }
-
-    return keyMap[key.toLowerCase()] || key;
+    return normalizeKeyCombo(key);
   }
 
   /** Convert a screenshot to Anthropic image content block */

@@ -5,7 +5,7 @@
 <h1 align="center">Clawd Cursor</h1>
 
 <p align="center">
-  <strong>AI Desktop Agent — Smart 3-Layer Pipeline</strong><br>
+  <strong>AI Desktop Agent - Smart 3-Layer Pipeline</strong><br>
   Works with any AI provider · Runs free with local models · Self-healing doctor
 </p>
 
@@ -17,15 +17,15 @@
 
 ## What's New in v0.5.0
 
-**Smart pipeline + self-healing doctor.** Clawd Cursor now auto-detects your AI provider, tests your models, and builds the optimal execution pipeline — from completely free (Ollama) to full power (Anthropic Computer Use).
+**Smart pipeline + self-healing doctor.** Clawd Cursor now auto-detects your AI provider, tests your models, and builds the optimal execution pipeline - from completely free (Ollama) to full power (Anthropic Computer Use).
 
-- **`clawd-cursor doctor`** — auto-diagnoses your setup and configures everything
-- **3-layer pipeline** — Action Router → Accessibility Reasoner → Screenshot fallback
-- **Multi-provider** — Anthropic, OpenAI, Ollama (local/free), Kimi
-- **95% cheaper** — simple tasks run for $0 with local Qwen
-- **52% smaller screenshots** — 58KB payloads, faster API calls
-- **Streaming responses** — early JSON return saves 1-3s per LLM call
-- **Self-healing** — if a model fails, the pipeline adapts automatically
+- **`clawd-cursor doctor`** - auto-diagnoses your setup and configures everything
+- **3-layer pipeline** - Action Router → Accessibility Reasoner → Screenshot fallback
+- **Multi-provider** - Anthropic, OpenAI, Ollama (local/free), Kimi
+- **95% cheaper** - simple tasks run for $0 with local Qwen
+- **HD screenshots at 1280px** — clear enough for Claude to identify toolbar icons reliably
+- **Streaming responses** - early JSON return saves 1-3s per LLM call
+- **Self-healing** - if a model fails, the pipeline adapts automatically
 
 ### Performance
 
@@ -34,7 +34,7 @@
 | Calculator (255*38=) | 43s | **2.6s** | **20.1s** |
 | Notepad (type hello) | 73s | **2.0s** | **54.2s** |
 | File Explorer | 53s | **1.9s** | **22.1s** |
-| GitHub → read → Notepad | N/A | — | **134.1s** |
+| GitHub → read → Notepad | N/A | - | **134.1s** |
 
 ---
 
@@ -143,7 +143,7 @@ npx clawd-cursor doctor
 ```
 
 ```
-🩺 Clawd Cursor Doctor — diagnosing your setup...
+🩺 Clawd Cursor Doctor - diagnosing your setup...
 
 📸 Screen capture...
    ✅ 2560x1440, 93ms
@@ -239,8 +239,8 @@ Options:
 ## Prerequisites
 
 - **Node.js 20+**
-- **PowerShell** (Windows) or **osascript** (macOS) — for accessibility features
-- **AI API Key** — optional. Works offline with Ollama or Action Router only.
+- **PowerShell** (Windows) or **osascript** (macOS) - for accessibility features
+- **AI API Key** - optional. Works offline with Ollama or Action Router only.
 
 ## Tech Stack
 

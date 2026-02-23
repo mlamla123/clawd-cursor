@@ -1,6 +1,6 @@
 ---
 name: clawd-cursor
-version: 0.5.0
+version: 0.5.1
 description: >
   AI desktop agent with smart 3-layer pipeline. Controls Windows/Mac natively via @nut-tree-fork/nut-js.
   Works with any AI provider (Anthropic, OpenAI, Ollama, Kimi) or completely free with local models.
