@@ -1,6 +1,6 @@
 ---
 name: clawd-cursor
-version: 0.6.0
+version: 0.5.3
 description: >
   AI desktop agent — control any app on Windows/macOS from your OpenClaw agent.
   Send natural language tasks to the Clawd Cursor API and it handles everything:
