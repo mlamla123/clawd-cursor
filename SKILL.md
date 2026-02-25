@@ -6,10 +6,13 @@ description: >
   Send natural language tasks to the Clawd Cursor API and it handles everything:
   opening apps, clicking buttons, typing text, navigating browsers, filling forms.
   If you can click it, your agent can too.
+homepage: https://clawdcursor.com
+source: https://github.com/AmrDab/clawd-cursor
 privacy: >
-  All screenshots and data stay local on the user's machine. AI calls go only to the user's own configured
-  API provider and key — no data is sent to third-party servers or skill authors. With Ollama, everything
-  runs 100% locally with zero external network calls.
+  Screenshots and UI data stay on the user's machine. If using Ollama (local), zero data leaves the host.
+  If using a cloud provider (Anthropic, OpenAI, Kimi), screenshots/text are sent to that provider's API
+  only — never to third-party servers or skill authors. The user controls which provider is used.
+  The REST API binds to 127.0.0.1 only and is not network-accessible.
 metadata:
   openclaw:
     requires:
@@ -24,6 +27,8 @@ metadata:
     privacy:
       - Screenshots processed by user's own configured AI provider only
       - With Ollama, fully offline — no external API calls
+      - With cloud providers, data goes only to user's chosen API endpoint
+      - REST API binds to 127.0.0.1 only — not network accessible
 credentials:
   - name: AI_API_KEY
     sensitivity: high
@@ -120,7 +125,7 @@ Expected: `{"status":"ok","version":"0.5.3"}`
 
 If connection refused — start it:
 ```powershell
-cd C:\Users\Dabbas\.openclaw\workspace\clawd-cursor; npm start
+cd <clawd-cursor-directory>; npm start
 ```
 
 ### Sending a Task (Async — Returns Immediately)
@@ -284,9 +289,11 @@ const buttons = await page.$$eval('button', els => els.map(e => e.textContent));
 
 ## Security
 
-- API binds to 127.0.0.1 only — not network accessible
+- API binds to `127.0.0.1` only — **not network accessible**. Verify: `netstat -an | findstr 3847` should show `127.0.0.1:3847`
 - Screenshots stay in memory, never saved to disk (unless `--debug`)
-- With Ollama, 100% local — zero external API calls
+- **With Ollama**: 100% local — zero external network calls. No data leaves the machine.
+- **With cloud providers** (Anthropic, OpenAI, Kimi): screenshots/text are sent to that provider's API only. No data goes to skill authors or third parties.
+- The user chooses their provider — this controls whether data stays local or goes to a cloud API.
 
 ---
 
