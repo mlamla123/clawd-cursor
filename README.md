@@ -37,6 +37,19 @@
 
 ---
 
+## OpenClaw Integration
+
+Clawd Cursor ships as an [OpenClaw](https://openclaw.ai) skill. Install it and any OpenClaw agent — yours or community-built — can control your desktop through natural language.
+
+The [`SKILL.md`](SKILL.md) teaches agents **when and how** to use Clawd Cursor: REST API for full desktop control, CDP direct for fast browser reads. Agents learn to be independent — no more asking you to screenshot or copy-paste things they can do themselves.
+
+```bash
+# Install as OpenClaw skill
+openclaw skills install clawd-cursor
+```
+
+---
+
 ## Quick Start
 
 ### Windows
