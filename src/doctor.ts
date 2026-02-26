@@ -148,7 +148,9 @@ export async function runDoctor(opts: {
       console.log(`   ❌ ${visionModel}: ${visionResult.error}`);
     }
   } else {
-    console.log(`   ⚠️  No API key - vision model skipped`);
+    console.log(`   ⚠️  No API key — vision model skipped`);
+    console.log(`   💡 To enable vision, run: clawdcursor doctor --provider anthropic --api-key YOUR_KEY`);
+    console.log(`   Or set AI_API_KEY in your .env file`);
     results.push({ name: 'Vision model', ok: false, detail: 'No API key' });
   }
 
