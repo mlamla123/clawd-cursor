@@ -126,7 +126,13 @@ export async function runDoctor(opts: {
         console.log(`   ✅ Ollama qwen2.5:7b: ${ollamaResult.latencyMs}ms (fallback)`);
       } else {
         console.log(`   ❌ Ollama not available either`);
+        console.log(`   💡 To set up a text model:`);
+        console.log(`      Free (local):  ollama pull qwen2.5:7b && ollama serve`);
+        console.log(`      Cloud:         clawdcursor doctor --provider anthropic --api-key YOUR_KEY`);
       }
+    } else {
+      console.log(`   💡 Make sure Ollama is running: ollama serve`);
+      console.log(`      Or use a cloud provider: clawdcursor doctor --provider anthropic --api-key YOUR_KEY`);
     }
   }
 
@@ -146,6 +152,8 @@ export async function runDoctor(opts: {
     } else {
       results.push({ name: `Vision model (${visionModel})`, ok: false, detail: visionResult.error || 'Failed' });
       console.log(`   ❌ ${visionModel}: ${visionResult.error}`);
+      console.log(`   💡 Your API key may be invalid or expired. Re-run with a new key:`);
+      console.log(`      clawdcursor doctor --provider ${providerKey} --api-key YOUR_NEW_KEY`);
     }
   } else {
     console.log(`   ⚠️  No API key — vision model skipped`);
