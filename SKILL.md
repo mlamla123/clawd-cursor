@@ -15,10 +15,11 @@ privacy: >
   The REST API binds to 127.0.0.1 only and is not network-accessible.
 metadata:
   openclaw:
-    requires:
-      bins:
-        - node
-        - npm
+    # Note: bins check removed — OpenClaw's hasBinary() doesn't handle Windows
+    # PATHEXT (.exe/.cmd), causing false "missing" on Windows even when node is
+    # installed. Since install requires npm (which implies node), the check is
+    # redundant. See: https://github.com/openclaw/openclaw/issues/TBD
+    requires: {}
     install:
       - git clone https://github.com/AmrDab/clawd-cursor.git
       - cd clawd-cursor && npm install && npm run build
