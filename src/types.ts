@@ -113,8 +113,16 @@ export const DEFAULT_CONFIG: ClawdConfig = {
   },
   safety: {
     defaultTier: SafetyTier.Preview,
-    confirmPatterns: ['send', 'delete', 'remove', 'purchase', 'buy', 'pay', 'submit'],
-    blockedPatterns: ['format.*disk', 'rm -rf', 'shutdown', 'restart'],
+    confirmPatterns: [
+      'send', 'delete', 'remove', 'purchase', 'buy', 'pay', 'submit',
+      'terminal', 'console', 'cmd\\.exe', 'powershell', 'bash', 'shell',
+      'sudo', 'del /[fq]', 'reboot', 'password', 'credential', 'secret',
+      'sign.?in', 'log.?in', 'authorize', 'transfer', 'wire',
+    ],
+    blockedPatterns: [
+      'format.*disk', 'format c:', 'rm -rf /', 'shutdown', 'shutdown /s',
+      'reboot', 'mkfs', 'dd if=', 'diskpart', ':(){:|:&};:',
+    ],
   },
   capture: {
     format: 'jpeg',

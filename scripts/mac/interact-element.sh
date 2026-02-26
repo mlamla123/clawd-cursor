@@ -133,10 +133,14 @@ case "$ACTION" in
     # Small delay for focus to take effect
     sleep 0.1
     
-    # Send keystrokes via System Events
+    # Send keystrokes via System Events (sanitize input via python3)
+    SAFE_VALUE=$(/usr/bin/python3 -c "import sys,json; print(json.dumps(sys.argv[1]))" "$VALUE" 2>/dev/null)
+    # SAFE_VALUE is now a JSON-quoted string like "hello \"world\""
+    # Strip outer quotes for AppleScript
+    SAFE_VALUE=${SAFE_VALUE:1:-1}
     osascript -e "
       tell application \"System Events\"
-        keystroke \"${VALUE//\"/\\\"}\"
+        keystroke \"${SAFE_VALUE}\"
       end tell
     " 2>/dev/null
     

@@ -195,7 +195,7 @@ done
         // Write temp PS1 and open in new Windows Terminal / PowerShell window
         const fs = await import('fs');
         const path = await import('path');
-        const tmpScript = path.join(os.tmpdir(), 'clawd-task-console.ps1');
+        const tmpScript = path.join(os.tmpdir(), `clawd-task-${Date.now()}.ps1`);
         fs.writeFileSync(tmpScript, scriptContent);
         spawnExec('powershell.exe', [
           '-Command', `Start-Process powershell -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File','${tmpScript}'`
@@ -203,14 +203,14 @@ done
       } else if (platform === 'darwin') {
         const fs = await import('fs');
         const path = await import('path');
-        const tmpScript = path.join(os.tmpdir(), 'clawd-task-console.sh');
+        const tmpScript = path.join(os.tmpdir(), `clawd-task-${Date.now()}.sh`);
         fs.writeFileSync(tmpScript, scriptContent, { mode: 0o755 });
         spawnExec('open', ['-a', 'Terminal', tmpScript], { detached: true, stdio: 'ignore' } as any);
       } else {
         // Linux fallback
         const fs = await import('fs');
         const path = await import('path');
-        const tmpScript = path.join(os.tmpdir(), 'clawd-task-console.sh');
+        const tmpScript = path.join(os.tmpdir(), `clawd-task-${Date.now()}.sh`);
         fs.writeFileSync(tmpScript, scriptContent, { mode: 0o755 });
         spawnExec('x-terminal-emulator', ['-e', tmpScript], { detached: true, stdio: 'ignore' } as any);
       }
