@@ -212,7 +212,7 @@ export async function runDoctor(opts: {
   const allOk = results.every(r => r.ok);
   console.log(`\n${'═'.repeat(50)}`);
   if (allOk) {
-    console.log(`✅ All systems go! Run 'clawd-cursor start' to begin.`);
+    console.log(`✅ All systems go! Run 'clawdcursor start' to begin.`);
   } else {
     const failures = results.filter(r => !r.ok);
     console.log(`⚠️  ${failures.length} issue(s) detected:`);
