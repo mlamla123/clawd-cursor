@@ -32,7 +32,7 @@ if (fs.existsSync(skillsDir)) {
     console.log('🔗 OpenClaw skill: already registered');
   } else {
     try {
-      fs.symlinkSync(clawdRoot, skillTarget, 'junction');
+      fs.symlinkSync(clawdRoot, skillTarget, process.platform === 'win32' ? 'junction' : 'dir');
       console.log(`🔗 OpenClaw skill: registered → ${skillTarget}`);
     } catch {
       // Symlink failed — copy SKILL.md

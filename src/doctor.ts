@@ -308,7 +308,7 @@ async function registerOpenClawSkill(results: DiagResult[]): Promise<void> {
 
     // Create symlink (or copy on Windows if symlink fails)
     try {
-      fs.symlinkSync(clawdCursorRoot, skillTarget, 'junction');
+      fs.symlinkSync(clawdCursorRoot, skillTarget, process.platform === 'win32' ? 'junction' : 'dir');
       console.log('   ✅ Registered as OpenClaw skill');
       console.log(`   📂 ${skillTarget} → ${clawdCursorRoot}`);
       results.push({ name: 'OpenClaw skill', ok: true, detail: 'Registered (symlink created)' });
