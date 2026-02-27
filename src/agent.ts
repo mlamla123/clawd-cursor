@@ -20,8 +20,14 @@
  */
 
 import * as fs from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { writeFile } from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
+
+const execFileAsync = promisify(execFile);
+const IS_MAC = os.platform() === 'darwin';
 import { NativeDesktop } from './native-desktop';
 import { AIBrain } from './ai-brain';
 import { LocalTaskParser } from './local-parser';
@@ -262,6 +268,76 @@ export class Agent {
   }
 
   /**
+   * macOS only: extract the first recognisable app name from the task string
+   * and bring it to the foreground with `open -a` so Computer Use gets a
+   * clean screenshot of the right window immediately.
+   *
+   * Returns the app name that was focused, or null if nothing was found.
+   * Safe no-op on Windows/Linux.
+   */
+  private async prefocusAppForTask(task: string): Promise<string | null> {
+    if (!IS_MAC) return null;
+
+    // Map of keywords → macOS app names (case-insensitive search in task text)
+    const APP_HINTS: Array<{ pattern: RegExp; appName: string }> = [
+      { pattern: /\bcodex\b/i,                         appName: 'Codex' },
+      { pattern: /\bcursor\b/i,                        appName: 'Cursor' },
+      { pattern: /\bvscode\b|\bvisual studio code\b/i, appName: 'Visual Studio Code' },
+      { pattern: /\bchrome\b|\bgoogle chrome\b/i,      appName: 'Google Chrome' },
+      { pattern: /\bsafari\b/i,                        appName: 'Safari' },
+      { pattern: /\bfirefox\b/i,                       appName: 'Firefox' },
+      { pattern: /\bslack\b/i,                         appName: 'Slack' },
+      { pattern: /\bdiscord\b/i,                       appName: 'Discord' },
+      { pattern: /\bfigma\b/i,                         appName: 'Figma' },
+      { pattern: /\bspotify\b/i,                       appName: 'Spotify' },
+      { pattern: /\bterminal\b/i,                      appName: 'Terminal' },
+      { pattern: /\biterm\b/i,                         appName: 'iTerm' },
+      { pattern: /\bwezterm\b/i,                       appName: 'WezTerm' },
+      { pattern: /\bfinder\b/i,                        appName: 'Finder' },
+      { pattern: /\bcalculator\b/i,                    appName: 'Calculator' },
+      { pattern: /\bnotes\b/i,                         appName: 'Notes' },
+      { pattern: /\bmail\b/i,                          appName: 'Mail' },
+      { pattern: /\bxcode\b/i,                         appName: 'Xcode' },
+    ];
+
+    for (const { pattern, appName } of APP_HINTS) {
+      if (pattern.test(task)) {
+        try {
+          // 1. Bring the app to front
+          await execFileAsync('open', ['-a', appName]);
+          await new Promise(r => setTimeout(r, 600));
+
+          // 2. Move its front window to the primary screen so nut-js screen.grab()
+          //    captures it (nut-js only grabs the primary/main display).
+          //    This is critical for multi-monitor setups.
+          const jxa = `
+            var se = Application("System Events");
+            var procs = se.processes.whose({name: "${appName}"});
+            if (procs.length > 0) {
+              var proc = procs[0];
+              if (proc.windows.length > 0) {
+                var win = proc.windows[0];
+                win.position.set([120, 80]);
+                win.size.set([1280, 900]);
+              }
+            }
+          `.trim();
+          await execFileAsync('osascript', ['-l', 'JavaScript', '-e', jxa]).catch(() => {
+            // Non-fatal — window stays where it is
+          });
+
+          await new Promise(r => setTimeout(r, 400)); // let window settle after move
+          console.log(`   🎯 Pre-focused: ${appName} → moved to primary screen`);
+          return appName;
+        } catch {
+          // App not installed or name mismatch — skip silently
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * PATH A: Anthropic Computer Use
    * Give the full task to Claude — it screenshots, plans, and executes.
    */
@@ -272,11 +348,8 @@ export class Agent {
   ): Promise<TaskResult> {
     console.log(`   🖥️  Using Computer Use API (screenshot-first)\n`);
 
-    // Minimize all windows so target apps get clean focus
-    try {
-      await this.desktop.keyPress('Super+d');
-      await new Promise(r => setTimeout(r, 500));
-    } catch { /* non-critical */ }
+    // macOS: bring the target app to front before the first screenshot
+    await this.prefocusAppForTask(task);
 
     this.state.status = 'acting';
     try {

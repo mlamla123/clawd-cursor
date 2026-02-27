@@ -57,6 +57,14 @@ const APP_ALIASES: Record<string, { processNames: string[]; searchTerm: string; 
   'slack':        { processNames: ['Slack', 'slack'],       searchTerm: 'Slack',              macOSAppName: 'Slack' },
   'teams':        { processNames: ['ms-teams', 'Teams'],    searchTerm: 'Teams',              macOSAppName: 'Microsoft Teams' },
   'discord':      { processNames: ['Discord'],              searchTerm: 'Discord',            macOSAppName: 'Discord' },
+  'codex':        { processNames: ['Codex'],                searchTerm: 'Codex',              macOSAppName: 'Codex' },
+  'wezterm':      { processNames: ['WezTerm', 'wezterm'],   searchTerm: 'WezTerm',            macOSAppName: 'WezTerm' },
+  'iterm':        { processNames: ['iTerm2', 'iTerm'],      searchTerm: 'iTerm',              macOSAppName: 'iTerm' },
+  'iterm2':       { processNames: ['iTerm2'],               searchTerm: 'iTerm2',             macOSAppName: 'iTerm' },
+  'cursor':       { processNames: ['Cursor'],               searchTerm: 'Cursor',             macOSAppName: 'Cursor' },
+  'notes':        { processNames: ['Notes'],                searchTerm: 'Notes',              macOSAppName: 'Notes' },
+  'mail':         { processNames: ['Mail'],                 searchTerm: 'Mail',               macOSAppName: 'Mail' },
+  'xcode':        { processNames: ['Xcode'],                searchTerm: 'Xcode',              macOSAppName: 'Xcode' },
 };
 
 /** Browser process names for URL navigation */

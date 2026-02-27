@@ -126,6 +126,6 @@ export const DEFAULT_CONFIG: ClawdConfig = {
   },
   capture: {
     format: 'jpeg',
-    quality: 65,
+    quality: 50,
   },
 };

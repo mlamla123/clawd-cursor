@@ -23,7 +23,7 @@ console.log(`
 
 // Auto-register as OpenClaw skill
 const homeDir = os.homedir();
-const skillsDir = path.join(homeDir, '.openclaw', 'workspace', 'skills');
+const skillsDir = path.join(homeDir, '.openclaw', 'skills');
 const skillTarget = path.join(skillsDir, 'clawdcursor');
 const clawdRoot = path.resolve(__dirname, '..');
 
@@ -50,4 +50,29 @@ if (fs.existsSync(skillsDir)) {
   }
 } else {
   console.log('🔗 OpenClaw not detected — install OpenClaw (https://openclaw.ai) to use as an AI skill');
+}
+
+// Auto-register as Codex skill (Codex UI / Codex agent)
+const codexSkillsDir = path.join(homeDir, '.codex', 'skills');
+const codexTarget = path.join(codexSkillsDir, 'clawd-cursor');
+if (fs.existsSync(codexSkillsDir)) {
+  if (fs.existsSync(codexTarget)) {
+    console.log('🔗 Codex skill: already registered');
+  } else {
+    try {
+      fs.symlinkSync(clawdRoot, codexTarget, process.platform === 'win32' ? 'junction' : 'dir');
+      console.log(`🔗 Codex skill: registered → ${codexTarget}`);
+    } catch {
+      try {
+        fs.mkdirSync(codexTarget, { recursive: true });
+        fs.copyFileSync(
+          path.join(clawdRoot, 'SKILL.md'),
+          path.join(codexTarget, 'SKILL.md')
+        );
+        console.log('🔗 Codex skill: registered (copied SKILL.md)');
+      } catch {
+        console.log('🔗 Codex skill: failed to register — symlink/copy ~/.codex/skills/clawd-cursor manually');
+      }
+    }
+  }
 }

@@ -170,6 +170,13 @@ export class SmartInteractionLayer {
     try {
       let result: SmartInteractionResult;
 
+      // Fast path: tasks that require a visual loop (screenshot → read → respond → repeat)
+      // cannot be planned by a text LLM up-front — skip straight to Computer Use.
+      if (this.isVisualLoopTask(task)) {
+        console.log(`   ⏭️  Smart Interaction: visual loop task detected — handing off to Computer Use`);
+        return { handled: false, success: false, steps: [], llmCalls: 0, description: 'Visual loop task — Computer Use required' };
+      }
+
       // Fast path: describe/read-only tasks are answered directly from a11y context
       // — no Computer Use (screenshot + vision) needed.
       if (this.isDescribeTask(task)) {
@@ -560,6 +567,19 @@ export class SmartInteractionLayer {
    * Returns true if the task is purely a read/describe request that requires
    * no UI actions — only a plain-English summary of what's on screen.
    */
+  /**
+   * Tasks that require repeated screenshot → vision → act cycles can't be
+   * pre-planned by a text LLM. Detect them early and skip to Computer Use.
+   */
+  private isVisualLoopTask(task: string): boolean {
+    const t = task.toLowerCase();
+    // Explicit loop / repeat / until keywords combined with screenshot or visual monitoring
+    const hasLoop = /\b(loop|repeat|keep doing|every time|until (done|complete|nothing left|finished))\b/.test(t);
+    const hasScreenshot = /\b(screenshot|take a screenshot|screen capture)\b/.test(t);
+    const hasWaitAndRespond = /\b(wait for.*(respond|response|reply)|monitor progress)\b/.test(t);
+    return (hasLoop && hasScreenshot) || (hasLoop && hasWaitAndRespond);
+  }
+
   private isDescribeTask(task: string): boolean {
     const t = task.trim();
     return /^(describe|what(?:'s| is)|tell me|show me|explain)\s+(what'?s?\s+)?(on|the|in|about)?\s*(screen|page|window|app|visible|open|current)/i.test(t)

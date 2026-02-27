@@ -14,6 +14,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { NativeDesktop } from './native-desktop';
 import { AccessibilityBridge } from './accessibility';
@@ -23,8 +24,58 @@ import type { ClawdConfig, StepResult } from './types';
 
 const BETA_HEADER = 'computer-use-2025-01-24';
 const MAX_ITERATIONS = 30;
+const IS_MAC = os.platform() === 'darwin';
 
-const SYSTEM_PROMPT = `You are Clawd Cursor, an AI desktop agent on Windows 11. Complete tasks fast and reliably.
+const SYSTEM_PROMPT_MAC = `You are Clawd Cursor, an AI desktop agent on macOS. Complete tasks fast and reliably.
+
+macOS: menu bar TOP, Dock at bottom (or side), Spotlight with Cmd+Space, high-DPI Retina display.
+
+ACCESSIBILITY: Each tool_result may include a WINDOWS list and focused window UI tree with element positions.
+Use accessibility data to find exact element positions and verify state.
+
+CRITICAL — BEFORE EVERY TASK:
+- NEVER press any key to "show the desktop" or "minimize windows". That hides what you need.
+- FIRST STEP: Take a screenshot to see what's currently on screen.
+- The target app has already been moved to the PRIMARY screen (top-left area, ~120,80 position) and focused before this task started. It should be visible immediately in the screenshot.
+- This is a MULTI-MONITOR setup. The screenshot only shows the PRIMARY screen. The target app has been moved there for you.
+- If the app is not visible in the screenshot (unlikely), click its Dock icon to bring it to the primary screen.
+- Only AFTER the right window is visible should you begin interacting with it.
+
+CRITICAL — SPEED RULES:
+1. BATCH ACTIONS. Return multiple computer tool calls in ONE response whenever possible.
+2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes. Then batch predictable actions.
+3. MANDATORY screenshots: (a) at task start to orient yourself, (b) after opening any app/dialog, (c) before repetitive actions, (d) to verify final results.
+4. NEVER batch a selection click with actions that depend on it — verify first.
+5. WINDOW MANAGEMENT: Bring app to front by clicking it or its Dock icon. Use Cmd+grave to cycle windows of same app.
+6. Prefer keyboard shortcuts: Cmd+C copy, Cmd+V paste, Cmd+W close, Cmd+Tab switch apps, Cmd+Space Spotlight.
+7. For file dialogs: use absolute paths (/Users/...) never ~ or $HOME.
+8. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area. Don't describe the whole screen.
+
+PATTERNS:
+- Open app: key "super+space" (Spotlight) + type app name + key "Return" — all in one response.
+- Bring app forward: click on its visible window, OR click its Dock icon.
+- Navigate URL in browser: key "super+l" + type URL + key "Return"
+- Fill forms: tab between fields, type values — batch the whole form in one response.
+- Submit/send in text input: ALWAYS follow type() with key("Return") in the SAME response. Never type without submitting.
+- Codex / AI chat apps: click the input box → type your message → key "Return" to send. All three in one batched response.
+- Switch apps: key "super+tab" to cycle, or click the Dock icon.
+- Recovery: dialog → key "Escape", wrong window → click correct window, app frozen → key "super+q" + reopen.
+
+SUBMITTING IS MANDATORY: After EVERY type() action into a chat or prompt input, you MUST immediately follow with key("Return") in the same response batch. Typing without submitting is an incomplete action. Never end a response after type() without also sending Return.
+
+WAITING FOR AI APPS (Codex, Claude, ChatGPT, etc.):
+After submitting a message to an AI chat app, the app takes time to generate a response. You MUST wait for it to finish before doing anything else. Here is the exact pattern:
+1. Click input box → type message → key "Return" (all in one batch)
+2. Take a screenshot to confirm submission happened
+3. Wait — do NOT interact yet. Take another screenshot after 8-10 seconds.
+4. Look for signs the AI is STILL generating: a stop/cancel button, a spinning indicator, the input box is disabled or shows a placeholder like "Generating...", or the response text is still growing.
+5. If STILL generating: wait again (take screenshot, check again). Keep waiting.
+6. Only when you see the AI has FINISHED — input box is active again, send button is available, no stop button, response text has stabilized — THEN read the response and send your next message.
+7. NEVER type into the input box while the AI is still generating. This interrupts it.
+
+Do NOT: press super+d or any "show desktop" shortcut, take screenshots after every single action, use Windows shortcuts (Win key, Alt+F4, etc), retry same failed coordinates, send a new message before the AI finishes responding.`;
+
+const SYSTEM_PROMPT_WIN = `You are Clawd Cursor, an AI desktop agent on Windows 11. Complete tasks fast and reliably.
 
 Win11: taskbar BOTTOM centered, system tray bottom-right, high-DPI.
 
@@ -36,21 +87,21 @@ CRITICAL — SPEED RULES:
 2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes. Then batch all predictable actions without screenshots.
 3. MANDATORY screenshots: (a) after opening any app/dialog/page, (b) after selecting a tool/mode/tab in ANY app, (c) before starting repetitive actions (to confirm setup is correct), (d) to verify final results.
 4. NEVER batch a tool/mode selection click together with the actions that depend on it. Always verify the tool is selected first.
-5. WINDOW MANAGEMENT: For single-app tasks, maximize with "super+Up". For multi-app tasks (side by side, comparing, etc.), use "super+Left" and "super+Right" to snap windows to halves. The PRIMARY app (where most work happens, e.g. Paint for drawing) gets the LARGER side or is opened FIRST with snap. Secondary/utility apps (timer, reference, etc.) get the smaller side. Think about which app needs more screen space.
+5. WINDOW MANAGEMENT: For single-app tasks, maximize with "super+Up". For multi-app tasks (side by side, comparing, etc.), use "super+Left" and "super+Right" to snap windows to halves.
 6. Prefer keyboard shortcuts over mouse clicks. Type instead of click when possible.
-7. For save/open dialogs: use ABSOLUTE paths (C:\Users\...) never environment variables (%USERPROFILE%).
+7. For save/open dialogs: use ABSOLUTE paths (C:\\Users\\...) never environment variables (%USERPROFILE%).
 8. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area of the screenshot. Don't describe the entire screen.
 
 PATTERNS:
-- Open app: key "super" + type name + key "Return" + wait 2s — all in one response. Then maximize ("super+Up") for single-app tasks, or snap ("super+Left"/"super+Right") for multi-app tasks.
+- Open app: key "super" + type name + key "Return" + wait 2s — all in one response. Then maximize ("super+Up").
 - Navigate URL: key "ctrl+l" + type full URL + key "Return" — all in one response
 - Fill forms: tab between fields + type values — batch the entire form in one response
-- Repetitive actions (drawing, data entry, clicking multiple items): FIRST verify setup with ONE screenshot (tool selected, right window, note coordinates), THEN batch ALL repetitive actions in ONE response with ZERO screenshots. You remember everything you've seen — the UI doesn't change during repetitive actions, so screenshots between them are wasted calls.
-- Drawing in Paint: Use the PENCIL tool (first tool in toolbar, leftmost). Draw circles as connected line segments (hexagon). Do NOT try to find shape tools — they are too small to identify reliably. Select pencil, take ONE screenshot to verify it's selected and note the canvas bounds, then batch ALL drawing strokes in a SINGLE response with NO screenshots between them. You have photographic memory — the canvas, tools, and coordinates don't change between strokes. The only screenshot needed is the final verification after all drawing is complete.
 - Save file: key "ctrl+s", wait 1s, type absolute path, key "Return" — all in one response
 - Recovery: popup → Escape, wrong page → ctrl+l + correct URL, app frozen → alt+F4 + reopen
 
-Do NOT: take screenshots after every action, go one action at a time when you can batch, use search engines for known URLs, retry same failed coords, describe the entire screenshot when a focus hint is given.`;
+Do NOT: take screenshots after every action, go one action at a time when you can batch, use search engines for known URLs, retry same failed coords.`;
+
+const SYSTEM_PROMPT = IS_MAC ? SYSTEM_PROMPT_MAC : SYSTEM_PROMPT_WIN;
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -81,6 +132,9 @@ export interface ComputerUseResult {
   llmCalls: number;
 }
 
+/** How long to reuse a cached a11y context before re-fetching (ms) */
+const A11Y_CACHE_TTL = 30_000;
+
 export class ComputerUseBrain {
   private config: ClawdConfig;
   private desktop: NativeDesktop;
@@ -94,6 +148,9 @@ export class ComputerUseBrain {
   private heldKeys: string[] = [];
   private lastMouseX = 0;
   private lastMouseY = 0;
+
+  // A11y context cache — avoids hammering JXA after every single action
+  private a11yCache: { context: string; ts: number; pid?: number } | null = null;
 
   constructor(config: ClawdConfig, desktop: NativeDesktop, a11y: AccessibilityBridge, safety: SafetyLayer) {
     this.config = config;
@@ -134,6 +191,10 @@ export class ComputerUseBrain {
     const steps: StepResult[] = [];
     let llmCalls = 0;
     const messages: any[] = [];
+
+    // Visual loop tasks (screenshot→act→repeat) don't benefit from a11y UI tree —
+    // they're purely vision-driven. Skip all a11y fetches to cut 3-10s per iteration.
+    const skipA11yCompletely = this.isVisualLoopSubtask(subtask);
 
     console.log(`   🖥️  Computer Use: "${subtask}"`);
 
@@ -187,12 +248,12 @@ export class ComputerUseBrain {
 
       // If end_turn → Claude thinks it's done. Verify with a final screenshot.
       if (response.stop_reason === 'end_turn') {
-        // Skip verification for simple visual tasks (drawing, etc.) where
-        // there's no objective pass/fail state to check
-        const isVisualTask = /\b(draw|paint|sketch|doodle|color|design)\b/i.test(subtask);
-        
-        if (isVisualTask) {
-          console.log(`   ✅ Computer Use: subtask complete (visual task — skipping verification)`);
+        // Skip verification for visual/loop tasks — trust Claude's judgment,
+        // avoid the extra screenshot + API call overhead
+        const skipVerify = skipA11yCompletely || /\b(draw|paint|sketch|doodle|color|design)\b/i.test(subtask);
+
+        if (skipVerify) {
+          console.log(`   ✅ Computer Use: subtask complete (skipping verification)`);
           steps.push({
             action: 'done',
             description: `Computer Use completed: "${subtask}"`,
@@ -205,10 +266,12 @@ export class ComputerUseBrain {
         // For non-visual tasks: take a verification screenshot and ask Claude to confirm
         console.log(`   🔍 Verifying outcome...`);
         llmCalls++;
-        
-        const verifyScreenshot = await this.desktop.captureForLLM();
+
+        const [verifyScreenshot, a11yContext] = await Promise.all([
+          this.desktop.captureForLLM(),
+          this.getA11yContext(true, false),
+        ]);
         if (debugDir) this.saveDebugScreenshot(verifyScreenshot.buffer, debugDir, subtaskIndex, i, 'verify');
-        const a11yContext = await this.getA11yContext();
 
         messages.push({
           role: 'user',
@@ -300,9 +363,12 @@ export class ComputerUseBrain {
         if (action === 'screenshot') {
           // Always provide screenshot for explicit screenshot requests
           console.log(`   📸 Screenshot requested`);
-          const screenshot = await this.desktop.captureForLLM();
+          // Run screenshot + a11y in parallel when a11y is needed
+          const [screenshot, a11yContext] = await Promise.all([
+            this.desktop.captureForLLM(),
+            this.getA11yContext(false, skipA11yCompletely),
+          ]);
           if (debugDir) this.saveDebugScreenshot(screenshot.buffer, debugDir, subtaskIndex, i, 'screenshot');
-          const a11yContext = await this.getA11yContext();
 
           toolResults.push({
             type: 'tool_result',
@@ -352,9 +418,11 @@ export class ComputerUseBrain {
 
           if (result.error) {
             // Always send full context on error so Claude can recover
-            const screenshot = await this.desktop.captureForLLM();
+            const [screenshot, a11yContext] = await Promise.all([
+              this.desktop.captureForLLM(),
+              this.getA11yContext(true, skipA11yCompletely),
+            ]);
             if (debugDir) this.saveDebugScreenshot(screenshot.buffer, debugDir, subtaskIndex, i, action);
-            const a11yContext = await this.getA11yContext();
             toolResults.push({
               type: 'tool_result',
               tool_use_id: toolUse.id,
@@ -365,17 +433,22 @@ export class ComputerUseBrain {
               ],
             });
           } else if (isLastInBatch) {
-            // Last action in batch: full screenshot + focus hint
+            // Last action in batch: full screenshot + optional a11y
             const isNavigation = action === 'key' && toolUse.input.text?.toLowerCase().includes('return');
             const isAppLaunch = action === 'key' && toolUse.input.text?.toLowerCase().includes('super');
             const isTyping = action === 'type';
             const isDrag = action === 'drag' || action === 'left_click_drag';
-            const delayMs = isAppLaunch ? 600 : isNavigation ? 400 : isTyping ? 50 : isDrag ? 30 : 150;
+            const delayMs = isAppLaunch ? 600 : isNavigation ? 300 : isTyping ? 30 : isDrag ? 30 : 80;
             await this.delay(delayMs);
 
-            const screenshot = await this.desktop.captureForLLM();
+            // Skip a11y after simple clicks/types, and always when in visual-loop mode.
+            // Run screenshot + a11y in parallel when a11y is needed.
+            const skipA11y = skipA11yCompletely || isTyping || (action === 'left_click' && !isNavigation);
+            const [screenshot, a11yContext] = await Promise.all([
+              this.desktop.captureForLLM(),
+              this.getA11yContext(isAppLaunch, skipA11y),
+            ]);
             if (debugDir) this.saveDebugScreenshot(screenshot.buffer, debugDir, subtaskIndex, i, action);
-            const a11yContext = await this.getA11yContext();
             const verifyHint = this.getVerificationHint(action, toolUse.input);
             const focusHint = this.getFocusHint(action, toolUse.input);
 
@@ -437,7 +510,7 @@ export class ComputerUseBrain {
           },
           body: JSON.stringify({
             model: this.config.ai.visionModel,
-            max_tokens: 4096,
+            max_tokens: 2048,
             system: SYSTEM_PROMPT,
             tools: [{
               type: 'computer_20250124',
@@ -620,25 +693,56 @@ export class ComputerUseBrain {
   // ─── Helpers ────────────────────────────────────────────────────
 
   /** Get accessibility context — windows, elements, focused app */
-  private async getA11yContext(): Promise<string> {
+  /**
+   * Detect tasks that are purely visual (screenshot→act loops).
+   * For these, the full a11y UI tree adds no value and only slows things down.
+   */
+  private isVisualLoopSubtask(task: string): boolean {
+    const t = task.toLowerCase();
+    const hasLoop = /\b(loop|repeat|keep|every time|until (done|complete|nothing left|finished))\b/.test(t);
+    const hasScreenshot = /\b(screenshot|take a screenshot)\b/.test(t);
+    const hasWaitRespond = /\b(wait for.*(respond|response)|monitor progress)\b/.test(t);
+    return (hasLoop && hasScreenshot) || (hasLoop && hasWaitRespond);
+  }
+
+  /**
+   * Fetch accessibility context, with caching.
+   *
+   * @param force  Skip cache and always re-fetch (e.g. after app switch).
+   * @param skip   Return empty string immediately — used for high-frequency
+   *               action results where a11y overhead isn't worth it.
+   */
+  private async getA11yContext(force = false, skip = false): Promise<string> {
+    if (skip) return '';
+
     try {
-      // Get active window to include its UI tree
+      // Fast path: return cached context if it's still fresh and same process
       const activeWindow = await this.a11y.getActiveWindow();
-      const processId = activeWindow?.processId;
-      const context = await this.a11y.getScreenContext(processId);
-      
-      // Add focused window summary at the top for quick orientation
+      const pid = activeWindow?.processId;
+
+      if (
+        !force &&
+        this.a11yCache &&
+        Date.now() - this.a11yCache.ts < A11Y_CACHE_TTL &&
+        this.a11yCache.pid === pid
+      ) {
+        return this.a11yCache.context;
+      }
+
+      const context = await this.a11y.getScreenContext(pid);
+
       let header = '';
       if (activeWindow) {
         header = `FOCUSED: [${activeWindow.processName}] "${activeWindow.title}" (pid:${activeWindow.processId})\n`;
-        // Extract URL from browser title if applicable
         const browserProcesses = ['chrome', 'msedge', 'firefox', 'brave', 'opera'];
         if (browserProcesses.some(b => activeWindow.processName.toLowerCase().includes(b))) {
           header += `BROWSER DETECTED — use ctrl+l to navigate, ctrl+t for new tab\n`;
         }
       }
-      
-      return `\nACCESSIBILITY:\n${header}${context}`;
+
+      const result = `\nACCESSIBILITY:\n${header}${context}`;
+      this.a11yCache = { context: result, ts: Date.now(), pid };
+      return result;
     } catch {
       return '\nACCESSIBILITY: (unavailable)';
     }
