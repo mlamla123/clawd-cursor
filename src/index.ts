@@ -13,6 +13,7 @@ import { DEFAULT_CONFIG } from './types';
 import type { ClawdConfig } from './types';
 import { VERSION } from './version';
 import dotenv from 'dotenv';
+import { resolveApiConfig } from './openclaw-credentials';
 
 dotenv.config();
 
@@ -32,6 +33,11 @@ program
   .option('--api-key <key>', 'AI provider API key')
   .option('--debug', 'Save screenshots to debug/ folder (off by default)')
   .action(async (opts) => {
+    const resolvedApi = resolveApiConfig({
+      apiKey: opts.apiKey,
+      provider: opts.provider,
+    });
+
     const config: ClawdConfig = {
       ...DEFAULT_CONFIG,
       server: {
@@ -39,10 +45,15 @@ program
         port: parseInt(opts.port),
       },
       ai: {
-        provider: opts.provider as any,
-        apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
-        model: opts.model || DEFAULT_CONFIG.ai.model,
-        visionModel: opts.model || DEFAULT_CONFIG.ai.visionModel,
+        provider: resolvedApi.provider || opts.provider || DEFAULT_CONFIG.ai.provider,
+        apiKey: resolvedApi.apiKey,
+        baseUrl: resolvedApi.baseUrl,
+        textBaseUrl: resolvedApi.textBaseUrl,
+        textApiKey: resolvedApi.textApiKey,
+        visionBaseUrl: resolvedApi.visionBaseUrl,
+        visionApiKey: resolvedApi.visionApiKey,
+        model: resolvedApi.textModel || opts.model || DEFAULT_CONFIG.ai.model,
+        visionModel: resolvedApi.visionModel || opts.model || DEFAULT_CONFIG.ai.visionModel,
       },
       debug: opts.debug || false,
     };
@@ -53,6 +64,10 @@ program
    ║   AI Desktop Agent — Smart Pipeline   ║
    ╚═══════════════════════════════════════╝
 `);
+
+    if (resolvedApi.source === 'openclaw') {
+      console.log('🔗 Using OpenClaw agent credentials for AI provider routing');
+    }
 
     const agent = new Agent(config);
 
@@ -93,9 +108,16 @@ program
   .option('--no-save', 'Don\'t save config to disk')
   .action(async (opts) => {
     const { runDoctor } = await import('./doctor');
-    await runDoctor({
-      apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
+    const resolvedApi = resolveApiConfig({
+      apiKey: opts.apiKey,
       provider: opts.provider,
+    });
+    await runDoctor({
+      apiKey: resolvedApi.apiKey,
+      provider: resolvedApi.provider || opts.provider,
+      baseUrl: resolvedApi.baseUrl,
+      textModel: resolvedApi.textModel,
+      visionModel: resolvedApi.visionModel,
       save: opts.save !== false,
     });
   });
@@ -357,9 +379,16 @@ program
 
     // 2. Run doctor (auto-configures pipeline + registers OpenClaw skill)
     const { runDoctor } = await import('./doctor');
-    await runDoctor({
-      apiKey: opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
+    const resolvedApi = resolveApiConfig({
+      apiKey: opts.apiKey,
       provider: opts.provider,
+    });
+    await runDoctor({
+      apiKey: resolvedApi.apiKey,
+      provider: resolvedApi.provider || opts.provider,
+      baseUrl: resolvedApi.baseUrl,
+      textModel: resolvedApi.textModel,
+      visionModel: resolvedApi.visionModel,
       save: true,
     });
 

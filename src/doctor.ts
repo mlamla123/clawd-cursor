@@ -30,6 +30,7 @@ import type {
   ModelTestResult,
 } from './providers';
 import { DEFAULT_CONFIG } from './types';
+import { resolveApiConfig } from './openclaw-credentials';
 
 const CONFIG_FILE = '.clawd-config.json';
 const execFileAsync = promisify(execFile);
@@ -44,6 +45,9 @@ interface DiagResult {
 export async function runDoctor(opts: {
   apiKey?: string;
   provider?: string;
+  baseUrl?: string;
+  textModel?: string;
+  visionModel?: string;
   save?: boolean;
 }): Promise<PipelineConfig | null> {
   const results: DiagResult[] = [];
@@ -105,7 +109,7 @@ export async function runDoctor(opts: {
 
   // ─── 3. AI Providers — Multi-Provider Scan ──────────────────────
   // If --provider and --api-key are explicitly given, use the legacy single-provider path
-  if (opts.provider && opts.apiKey) {
+  if (opts.apiKey && (opts.provider || opts.baseUrl || opts.textModel || opts.visionModel)) {
     return runSingleProviderFlow(opts, results);
   }
 
@@ -270,19 +274,31 @@ export async function runDoctor(opts: {
  * Preserves backward compatibility with CLI flags.
  */
 async function runSingleProviderFlow(
-  opts: { apiKey?: string; provider?: string; save?: boolean },
+  opts: { apiKey?: string; provider?: string; baseUrl?: string; textModel?: string; visionModel?: string; save?: boolean },
   results: DiagResult[],
 ): Promise<PipelineConfig | null> {
-  const apiKey = opts.apiKey || process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
+  const resolvedApi = resolveApiConfig(opts);
+  const apiKey = resolvedApi.apiKey;
   const providerKey = detectProvider(apiKey, opts.provider);
-  const provider = PROVIDERS[providerKey];
+  const baseProvider = PROVIDERS[providerKey];
+  const provider: ProviderProfile = opts.baseUrl
+    ? {
+        ...baseProvider,
+        name: `${baseProvider.name} (OpenAI-compatible endpoint)`,
+        baseUrl: opts.baseUrl,
+        openaiCompat: true,
+        computerUse: false,
+        textModel: opts.textModel || baseProvider.textModel,
+        visionModel: opts.visionModel || baseProvider.visionModel,
+      }
+    : baseProvider;
 
   console.log(`\n🔑 AI Provider: ${provider.name} (explicit override)`);
 
   let textModelWorks = false;
   let visionModelWorks = false;
-  let textModel = provider.textModel;
-  const visionModel = provider.visionModel;
+  let textModel = opts.textModel || provider.textModel;
+  const visionModel = opts.visionModel || provider.visionModel;
 
   // Test text model (Layer 2)
   console.log(`   Testing ${textModel} (text)...`);
@@ -1092,7 +1108,7 @@ export function loadPipelineConfig(): PipelineConfig | null {
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     const providerKey = raw.provider || 'ollama';
     const provider = PROVIDERS[providerKey] || PROVIDERS['ollama'];
-    const apiKey = process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
+    const apiKey = resolveApiConfig().apiKey;
 
     // Support mixed-provider configs saved by the new doctor
     const layer2BaseUrl = raw.pipeline?.layer2?.baseUrl ?? provider.baseUrl;

@@ -85,10 +85,12 @@ export class Agent {
 
     // hasApiKey gates LLM decomposition — true if cloud key OR local LLM (Ollama) is available
     const hasCloudKey = !!(config.ai.apiKey && config.ai.apiKey.length > 0);
+    const hasVisionKey = !!(config.ai.visionApiKey && config.ai.visionApiKey.length > 0);
     const hasLocalLLM = !!this.reasoner;  // If reasoner loaded, we have an LLM for decomposition
-    this.hasApiKey = hasCloudKey || hasLocalLLM;
+    this.hasApiKey = hasCloudKey || hasVisionKey || hasLocalLLM;
 
     // If no cloud key but Ollama is available, reconfigure brain to use Ollama for decomposition
+    // IMPORTANT: preserve vision credentials so Layer 3 can still use cloud vision (e.g. Anthropic)
     if (!hasCloudKey && hasLocalLLM && pipelineConfig) {
       const ollamaModel = pipelineConfig.layer2.model || 'qwen2.5:7b';
       this.config = {
@@ -98,6 +100,10 @@ export class Agent {
           provider: 'ollama' as any,
           model: ollamaModel,
           apiKey: '',  // Ollama doesn't need a key
+          // Preserve vision credentials for Layer 3 fallback
+          visionApiKey: config.ai.visionApiKey,
+          visionBaseUrl: config.ai.visionBaseUrl,
+          visionModel: config.ai.visionModel,
         },
       };
       this.brain = new AIBrain(this.config);
@@ -106,7 +112,7 @@ export class Agent {
 
     if (!this.hasApiKey) {
       console.log(`⚡ Running in offline mode (no API key or local LLM). Local parser + action router only.`);
-      console.log(`   To unlock AI fallback, set AI_API_KEY in .env or run: clawdcursor doctor`);
+      console.log(`   To unlock AI fallback, configure your OpenClaw agent provider (or set AI_API_KEY in standalone mode) and run: clawdcursor doctor`);
     }
   }
 
@@ -411,7 +417,7 @@ export class Agent {
         console.log(`   ❌ Task too complex for offline mode.`);
         return {
           success: false,
-          steps: [{ action: 'error', description: 'Task too complex for offline mode. Set AI_API_KEY to unlock AI fallback.', success: false, timestamp: Date.now() }],
+          steps: [{ action: 'error', description: 'Task too complex for offline mode. Configure OpenClaw agent provider (or set AI_API_KEY in standalone mode) to unlock AI fallback.', success: false, timestamp: Date.now() }],
           duration: Date.now() - startTime,
         };
       }
