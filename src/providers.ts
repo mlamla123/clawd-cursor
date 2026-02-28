@@ -49,8 +49,8 @@ export const PROVIDERS: Record<string, ProviderProfile> = {
     name: 'Ollama (Local)',
     baseUrl: 'http://localhost:11434/v1',
     authHeader: () => ({}),
-    textModel: 'qwen2.5:7b',
-    visionModel: 'qwen2.5:7b', // no vision model locally by default
+    textModel: '',  // auto-detected from available models by doctor
+    visionModel: '', // auto-detected from available models by doctor
     openaiCompat: true,
     computerUse: false,
   },
@@ -59,7 +59,34 @@ export const PROVIDERS: Record<string, ProviderProfile> = {
     baseUrl: 'https://api.moonshot.cn/v1',
     authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
     textModel: 'moonshot-v1-8k',
-    visionModel: 'moonshot-v1-8k', // Kimi doesn't have a separate vision model
+    visionModel: 'moonshot-v1-8k',
+    openaiCompat: true,
+    computerUse: false,
+  },
+  groq: {
+    name: 'Groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    textModel: 'llama-3.3-70b-versatile',
+    visionModel: 'llama-3.2-90b-vision-preview',
+    openaiCompat: true,
+    computerUse: false,
+  },
+  together: {
+    name: 'Together AI',
+    baseUrl: 'https://api.together.xyz/v1',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    textModel: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+    visionModel: 'meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo',
+    openaiCompat: true,
+    computerUse: false,
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    authHeader: (key) => ({ 'Authorization': `Bearer ${key}` }),
+    textModel: 'deepseek-chat',
+    visionModel: 'deepseek-chat',
     openaiCompat: true,
     computerUse: false,
   },
@@ -75,8 +102,9 @@ export function detectProvider(apiKey: string, explicitProvider?: string): strin
   if (apiKey.startsWith('sk-ant-')) return 'anthropic';
   if (apiKey.startsWith('sk-') && apiKey.length > 60) return 'kimi'; // Kimi keys are longer than OpenAI
   if (apiKey.startsWith('sk-')) return 'openai';
+  if (apiKey.startsWith('gsk_')) return 'groq';
 
-  return 'openai'; // Default fallback
+  return 'openai'; // Default fallback — most providers use OpenAI-compatible API
 }
 
 export interface PipelineConfig {
@@ -199,6 +227,9 @@ const PROVIDER_ENV_VARS: Record<string, string[]> = {
   anthropic: ['ANTHROPIC_API_KEY'],
   openai: ['OPENAI_API_KEY'],
   kimi: ['KIMI_API_KEY', 'MOONSHOT_API_KEY'],
+  groq: ['GROQ_API_KEY'],
+  together: ['TOGETHER_API_KEY'],
+  deepseek: ['DEEPSEEK_API_KEY'],
 };
 
 /**
@@ -217,7 +248,7 @@ export async function scanProviders(): Promise<ProviderScanResult[]> {
   const genericIsOpenClaw = resolvedApi.source === 'openclaw';
 
   // ── Check key-based providers ─────────────────────────────────
-  for (const providerKey of ['anthropic', 'openai', 'kimi'] as const) {
+  for (const providerKey of Object.keys(PROVIDER_ENV_VARS)) {
     const envVars = PROVIDER_ENV_VARS[providerKey];
     let key = '';
 
@@ -308,11 +339,11 @@ export async function scanProviders(): Promise<ProviderScanResult[]> {
   return results;
 }
 
-/** Text model preference: cheapest first */
-const TEXT_MODEL_PREFERENCE: string[] = ['ollama', 'kimi', 'openai', 'anthropic'];
+/** Text model preference: cheapest/fastest first */
+const TEXT_MODEL_PREFERENCE: string[] = ['ollama', 'groq', 'together', 'deepseek', 'kimi', 'openai', 'anthropic'];
 
-/** Vision model preference: best first */
-const VISION_MODEL_PREFERENCE: string[] = ['anthropic', 'openai', 'kimi', 'ollama'];
+/** Vision model preference: best vision capability first */
+const VISION_MODEL_PREFERENCE: string[] = ['anthropic', 'openai', 'groq', 'together', 'kimi', 'deepseek', 'ollama'];
 
 /**
  * Given scan results and model test results, build the optimal mixed pipeline.

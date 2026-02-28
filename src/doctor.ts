@@ -140,9 +140,12 @@ export async function runDoctor(opts: {
   if (unavailableCloud.length > 0) {
     console.log(`\n   💡 Cloud providers not configured (add API keys to unlock):`);
     const keyInfo: Record<string, string> = {
-      anthropic: 'ANTHROPIC_API_KEY — https://console.anthropic.com (best vision + computer use)',
+      anthropic: 'ANTHROPIC_API_KEY — https://console.anthropic.com (vision + computer use)',
       openai: 'OPENAI_API_KEY — https://platform.openai.com (GPT-4o vision)',
-      kimi: 'MOONSHOT_API_KEY — https://platform.moonshot.cn (256k context, affordable)',
+      kimi: 'MOONSHOT_API_KEY — https://platform.moonshot.cn (256k context)',
+      groq: 'GROQ_API_KEY — https://console.groq.com (fast inference)',
+      together: 'TOGETHER_API_KEY — https://api.together.xyz (open models)',
+      deepseek: 'DEEPSEEK_API_KEY — https://platform.deepseek.com (reasoning)',
     };
     for (const scan of unavailableCloud) {
       if (keyInfo[scan.key]) {
@@ -172,9 +175,12 @@ export async function runDoctor(opts: {
 
             // Save to .env for persistence
             const envPath = path.join(process.cwd(), '.env');
-            const envVarName = detectedKey === 'anthropic' ? 'ANTHROPIC_API_KEY' :
-                               detectedKey === 'openai' ? 'OPENAI_API_KEY' :
-                               detectedKey === 'kimi' ? 'MOONSHOT_API_KEY' : 'AI_API_KEY';
+            const envVarNames: Record<string, string> = {
+              anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY',
+              kimi: 'MOONSHOT_API_KEY', groq: 'GROQ_API_KEY',
+              together: 'TOGETHER_API_KEY', deepseek: 'DEEPSEEK_API_KEY',
+            };
+            const envVarName = envVarNames[detectedKey] || 'AI_API_KEY';
             const envLine = `${envVarName}=${trimmedKey}\n`;
             try {
               fs.appendFileSync(envPath, envLine);
@@ -316,15 +322,31 @@ async function runSingleProviderFlow(
     results.push({ name: `Text model (${textModel})`, ok: false, detail: textResult.error || 'Failed' });
     console.log(`   ❌ ${textModel}: ${textResult.error}`);
 
-    // Try fallback - if explicit provider fails, try Ollama
+    // Try fallback - if explicit provider fails, try Ollama with best available model
     if (providerKey !== 'ollama') {
       console.log(`   🔄 Trying Ollama fallback...`);
-      const ollamaResult = await testModel(PROVIDERS['ollama'], '', 'qwen2.5:7b', false);
-      if (ollamaResult.ok) {
-        textModelWorks = true;
-        textModel = 'qwen2.5:7b';
-        console.log(`   ✅ Ollama qwen2.5:7b: ${ollamaResult.latencyMs}ms (fallback)`);
-      } else {
+      try {
+        const ollamaRes = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) });
+        if (ollamaRes.ok) {
+          const ollamaData = await ollamaRes.json() as { models?: Array<{ name: string }> };
+          const ollamaModels = (ollamaData.models || []).map((m: { name: string }) => m.name);
+          const bestModel = pickOllamaTextModel(ollamaModels);
+          if (bestModel) {
+            const ollamaResult = await testModel(PROVIDERS['ollama'], '', bestModel, false);
+            if (ollamaResult.ok) {
+              textModelWorks = true;
+              textModel = bestModel;
+              console.log(`   ✅ Ollama ${bestModel}: ${ollamaResult.latencyMs}ms (fallback)`);
+            } else {
+              console.log(`   ❌ Ollama not available either`);
+            }
+          } else {
+            console.log(`   ❌ Ollama running but no models pulled`);
+          }
+        } else {
+          console.log(`   ❌ Ollama not available either`);
+        }
+      } catch {
         console.log(`   ❌ Ollama not available either`);
       }
     }
@@ -359,9 +381,20 @@ async function runSingleProviderFlow(
     textModel !== provider.textModel ? textModel : undefined,
   );
 
-  // Handle mixed providers (e.g., Ollama for text, Anthropic for vision)
-  if (textModel === 'qwen2.5:7b' && providerKey !== 'ollama') {
-    pipeline.layer2.baseUrl = PROVIDERS['ollama'].baseUrl;
+  // Handle mixed providers (e.g., Ollama for text, cloud for vision)
+  // If the text model was resolved from Ollama but the main provider is cloud, set Layer 2 to Ollama baseUrl
+  if (providerKey !== 'ollama' && pipeline.layer2.model && !pipeline.layer2.baseUrl) {
+    // Check if the text model is an Ollama model by testing the Ollama endpoint
+    try {
+      const testRes = await fetch(`http://localhost:11434/api/show`, {
+        method: 'POST',
+        body: JSON.stringify({ name: pipeline.layer2.model }),
+        signal: AbortSignal.timeout(2000),
+      });
+      if (testRes.ok) {
+        pipeline.layer2.baseUrl = PROVIDERS['ollama'].baseUrl;
+      }
+    } catch { /* not Ollama model, leave baseUrl as-is */ }
   }
 
   console.log(`\n🧠 Recommended pipeline:`);
@@ -794,12 +827,15 @@ function printNoProvidersHelp(results: DiagResult[]): void {
   console.log(`\n   ❌ No AI providers found!\n`);
   console.log(`   Option 1 (Free, local):`);
   console.log(`      Install Ollama: https://ollama.ai`);
-  console.log(`      Then: ollama pull qwen2.5:7b\n`);
+  console.log(`      Then: ollama pull <model>  (e.g. qwen2.5:7b, llama3.2, gemma2)\n`);
   console.log(`   Option 2 (Cloud):`);
-  console.log(`      Get an API key from one of:`);
-  console.log(`      - Anthropic: https://console.anthropic.com (recommended, has Computer Use)`);
+  console.log(`      Get an API key from any OpenAI-compatible provider:`);
+  console.log(`      - Anthropic: https://console.anthropic.com (has Computer Use)`);
   console.log(`      - OpenAI: https://platform.openai.com`);
-  console.log(`      - Kimi: https://platform.moonshot.cn`);
+  console.log(`      - Groq: https://console.groq.com`);
+  console.log(`      - Together: https://api.together.xyz`);
+  console.log(`      - DeepSeek: https://platform.deepseek.com`);
+  console.log(`      - Any OpenAI-compatible endpoint`);
   console.log(`      Then: clawdcursor install --api-key YOUR_KEY\n`);
 
   results.push({ name: 'AI Providers', ok: false, detail: 'No providers available' });
@@ -830,14 +866,14 @@ function printSummary(results: DiagResult[], pipeline: PipelineConfig): void {
     }
     if (textFailed) {
       console.log(`   Text LLM missing — needed for accessibility reasoning (Layer 2)`);
-      console.log(`   Free (local):  ollama pull qwen2.5:7b && ollama serve`);
-      console.log(`   Cloud:         clawdcursor install --provider anthropic --api-key YOUR_API_KEY_HERE`);
+      console.log(`   Free (local):  ollama pull <model> && ollama serve  (e.g. qwen2.5:7b, llama3.2)`);
+      console.log(`   Cloud:         clawdcursor install --provider <provider> --api-key YOUR_KEY`);
       console.log('');
     }
     if (visionFailed) {
       console.log(`   Vision LLM missing — needed for screenshot analysis (Layer 3)`);
-      console.log(`   Run:           clawdcursor install --provider anthropic --api-key YOUR_API_KEY_HERE`);
-      console.log(`   Supported:     Anthropic, OpenAI, or Kimi (requires API key)`);
+      console.log(`   Run:           clawdcursor install --provider <provider> --api-key YOUR_KEY`);
+      console.log(`   Supported:     Any provider with vision models (Anthropic, OpenAI, Groq, etc.)`);
       console.log('');
     }
     if (visionFailed && !textFailed) {
@@ -1077,7 +1113,7 @@ async function testModel(
           ? (err.message || JSON.stringify(err))
           : String(err);
         const hint = (err.type === 'not_found_error' || err.type === 'invalid_request_error')
-          ? ' — check model id (e.g. claude-3-5-haiku-20241022 or claude-haiku-4-5)'
+          ? ' — check model id matches your provider'
           : '';
         return { ok: false, error: msg + hint };
       }

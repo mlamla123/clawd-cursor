@@ -28,7 +28,7 @@ program
   .command('start')
   .description('Start the Clawd Cursor agent')
   .option('--port <port>', 'API server port', '3847')
-  .option('--provider <provider>', 'AI provider (anthropic|openai|ollama|kimi)', 'anthropic')
+  .option('--provider <provider>', 'AI provider (auto-detected, or specify: anthropic|openai|ollama|kimi|groq|...)')
   .option('--model <model>', 'Vision model to use')
   .option('--api-key <key>', 'AI provider API key')
   .option('--debug', 'Save screenshots to debug/ folder (off by default)')
@@ -103,7 +103,7 @@ program
 program
   .command('doctor')
   .description('🩺 Diagnose setup and auto-configure the pipeline')
-  .option('--provider <provider>', 'AI provider (anthropic|openai|ollama|kimi)')
+  .option('--provider <provider>', 'AI provider (auto-detected, or specify: anthropic|openai|ollama|kimi|groq|...)')
   .option('--api-key <key>', 'AI provider API key')
   .option('--no-save', 'Don\'t save config to disk')
   .action(async (opts) => {
@@ -359,7 +359,7 @@ program
   .command('install')
   .description('Register Clawd Cursor as an OpenClaw skill and save config')
   .option('--api-key <key>', 'AI provider API key')
-  .option('--provider <provider>', 'AI provider (anthropic|openai|ollama|kimi)')
+  .option('--provider <provider>', 'AI provider (auto-detected, or specify: anthropic|openai|ollama|kimi|groq|...)')
   .action(async (opts) => {
     const fs = await import('fs');
     const path = await import('path');

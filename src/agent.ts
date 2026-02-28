@@ -92,7 +92,7 @@ export class Agent {
     // If no cloud key but Ollama is available, reconfigure brain to use Ollama for decomposition
     // IMPORTANT: preserve vision credentials so Layer 3 can still use cloud vision (e.g. Anthropic)
     if (!hasCloudKey && hasLocalLLM && pipelineConfig) {
-      const ollamaModel = pipelineConfig.layer2.model || 'qwen2.5:7b';
+      const ollamaModel = pipelineConfig.layer2.model;
       this.config = {
         ...config,
         ai: {

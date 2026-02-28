@@ -115,9 +115,9 @@ export const DEFAULT_CONFIG: ClawdConfig = {
     host: '127.0.0.1',
   },
   ai: {
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
-    visionModel: 'claude-sonnet-4-20250514',
+    provider: 'auto',
+    model: '',
+    visionModel: '',
   },
   safety: {
     defaultTier: SafetyTier.Preview,
