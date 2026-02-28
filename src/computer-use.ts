@@ -212,6 +212,8 @@ export class ComputerUseBrain {
 
     let consecutiveErrors = 0;
     const MAX_CONSECUTIVE_ERRORS = 5;
+    let lastActionSignature = '';
+    let repeatedActionStreak = 0;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       llmCalls++;
@@ -408,30 +410,49 @@ export class ComputerUseBrain {
           // Track consecutive errors for bail-out
           if (result.error) {
             consecutiveErrors++;
+            lastActionSignature = '';
+            repeatedActionStreak = 0;
             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
               console.log(`   ❌ ${MAX_CONSECUTIVE_ERRORS} consecutive errors — aborting task`);
               return { success: false, steps, llmCalls };
             }
           } else {
             consecutiveErrors = 0;
+            const signature = this.actionSignature(toolUse);
+            if (signature && signature === lastActionSignature) {
+              repeatedActionStreak++;
+            } else {
+              lastActionSignature = signature;
+              repeatedActionStreak = signature ? 1 : 0;
+            }
           }
 
-          if (result.error) {
-            // Always send full context on error so Claude can recover
+          const loopDetected = !result.error && repeatedActionStreak >= 4;
+
+          if (result.error || loopDetected) {
+            // Always send full context on error or loop detection so Claude can recover
             const [screenshot, a11yContext] = await Promise.all([
               this.desktop.captureForLLM(),
               this.getA11yContext(true, skipA11yCompletely),
             ]);
             if (debugDir) this.saveDebugScreenshot(screenshot.buffer, debugDir, subtaskIndex, i, action);
+            const loopHint = loopDetected
+              ? `Loop guard: repeated the same action ${repeatedActionStreak} times (${lastActionSignature}). STOP repeating. Use a different strategy (refocus target app/tab, navigate back/home, or choose a different element).`
+              : '';
             toolResults.push({
               type: 'tool_result',
               tool_use_id: toolUse.id,
               content: [
-                { type: 'text', text: `Error: ${result.error}` },
+                { type: 'text', text: result.error ? `Error: ${result.error}` : loopHint },
                 this.screenshotToContent(screenshot),
                 { type: 'text', text: a11yContext },
               ],
             });
+            if (loopDetected) {
+              console.log(`   ♻️  Loop guard: repeated action detected — forcing recovery context`);
+              repeatedActionStreak = 0;
+              lastActionSignature = '';
+            }
           } else if (isLastInBatch) {
             // Last action in batch: full screenshot + optional a11y
             const isNavigation = action === 'key' && toolUse.input.text?.toLowerCase().includes('return');
@@ -703,6 +724,21 @@ export class ComputerUseBrain {
     const hasScreenshot = /\b(screenshot|take a screenshot)\b/.test(t);
     const hasWaitRespond = /\b(wait for.*(respond|response)|monitor progress)\b/.test(t);
     return (hasLoop && hasScreenshot) || (hasLoop && hasWaitRespond);
+  }
+
+
+  /** Build a compact signature used to detect repeated no-progress action loops. */
+  private actionSignature(toolUse: ToolUseBlock): string {
+    const { action, coordinate, text, key, scroll_direction, scroll_amount } = toolUse.input;
+
+    // Focus on actions that commonly loop when the model gets stuck.
+    const loopProne = new Set(['left_click', 'right_click', 'double_click', 'scroll', 'key', 'mouse_move']);
+    if (!loopProne.has(action)) return '';
+
+    const coordPart = coordinate ? `${coordinate[0]},${coordinate[1]}` : '';
+    const textPart = (text || key || '').toLowerCase().trim().slice(0, 40);
+    const scrollPart = action === 'scroll' ? `${scroll_direction || 'down'}:${scroll_amount || 3}` : '';
+    return `${action}|${coordPart}|${textPart}|${scrollPart}`;
   }
 
   /**
