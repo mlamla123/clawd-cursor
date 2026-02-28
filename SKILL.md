@@ -22,9 +22,9 @@ metadata:
     requires: {}
     install:
       - git clone https://github.com/AmrDab/clawd-cursor.git
-      - cd clawd-cursor && npm install && npm run build
-      - cd clawd-cursor && npx clawd-cursor doctor
-      - cd clawd-cursor && npm start
+      - cd clawd-cursor && npm install && npm run setup
+      - cd clawd-cursor && clawdcursor doctor
+      - cd clawd-cursor && clawdcursor start
     privacy:
       - Screenshots processed by user's own configured AI provider only
       - With Ollama, fully offline — no external API calls
