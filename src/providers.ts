@@ -247,6 +247,99 @@ export async function scanProviders(): Promise<ProviderScanResult[]> {
   const genericProviderHint = resolvedApi.provider || '';
   const genericIsOpenClaw = resolvedApi.source === 'openclaw';
 
+  // When OpenClaw is the source, load ALL provider keys from config files
+  const openclawProviderKeys: Record<string, { apiKey: string; baseUrl?: string }> = {};
+  if (resolvedApi.source === 'openclaw') {
+    // resolveApiConfig only returns the "best" provider.
+    // We need ALL of them for scanning. Read auth-profiles directly.
+    try {
+      const os = await import('os');
+      const fs = await import('fs');
+      const path = await import('path');
+      const home = os.homedir();
+      const roots = [path.join(home, '.openclaw'), path.join(home, '.openclaw-dev')];
+      
+      for (const root of roots) {
+        // Read auth-profiles for API keys
+        const authPaths = [
+          path.join(root, 'agents', 'main', 'agent', 'auth-profiles.json'),
+          path.join(root, 'agents', 'main', 'auth-profiles.json'),
+        ];
+        
+        for (const authPath of authPaths) {
+          try {
+            if (!fs.existsSync(authPath)) continue;
+            const auth = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+            const profiles = auth?.profiles || auth;
+            if (!profiles || typeof profiles !== 'object') continue;
+            
+            for (const [profileKey, profileValue] of Object.entries(profiles)) {
+              const providerName = profileKey.split(':')[0].toLowerCase();
+              const val = profileValue as any;
+              const apiKey = val?.key || val?.apiKey || val?.api_key || '';
+              if (!apiKey) continue;
+              
+              // Map OpenClaw provider names to Clawd Cursor provider keys
+              const providerMap: Record<string, string> = {
+                'anthropic': 'anthropic',
+                'openai': 'openai',
+                'moonshot': 'kimi',
+                'kimi': 'kimi',
+                'groq': 'groq',
+                'together': 'together',
+                'deepseek': 'deepseek',
+              };
+              
+              const clawdKey = providerMap[providerName];
+              if (clawdKey && !openclawProviderKeys[clawdKey]) {
+                openclawProviderKeys[clawdKey] = { apiKey };
+              }
+            }
+          } catch { /* skip */ }
+        }
+        
+        // Read openclaw.json for base URLs
+        const configPaths = [
+          path.join(root, 'openclaw.json'),
+          path.join(root, 'agents', 'main', 'openclaw.json'),
+        ];
+        
+        for (const configPath of configPaths) {
+          try {
+            if (!fs.existsSync(configPath)) continue;
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            const providers = cfg?.models?.providers || {};
+            
+            for (const [provName, provConfig] of Object.entries(providers)) {
+              const pConfig = provConfig as any;
+              const baseUrl = pConfig?.baseUrl;
+              const providerMap: Record<string, string> = {
+                'anthropic': 'anthropic',
+                'openai': 'openai',
+                'moonshot': 'kimi',
+                'kimi': 'kimi',
+                'groq': 'groq',
+                'together': 'together',
+                'deepseek': 'deepseek',
+                'nvidia': 'nvidia',
+                'ollama': 'ollama',
+              };
+              
+              const clawdKey = providerMap[provName.toLowerCase()];
+              if (clawdKey && openclawProviderKeys[clawdKey] && baseUrl) {
+                openclawProviderKeys[clawdKey].baseUrl = baseUrl;
+              }
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch { /* OpenClaw config read failed, continue with existing logic */ }
+    
+    if (Object.keys(openclawProviderKeys).length > 0) {
+      console.log(`   🔗 OpenClaw providers detected: ${Object.keys(openclawProviderKeys).join(', ')}`);
+    }
+  }
+
   // ── Check key-based providers ─────────────────────────────────
   for (const providerKey of Object.keys(PROVIDER_ENV_VARS)) {
     const envVars = PROVIDER_ENV_VARS[providerKey];
@@ -265,6 +358,11 @@ export async function scanProviders(): Promise<ProviderScanResult[]> {
         key = process.env[envVar]!;
         break;
       }
+    }
+
+    // OpenClaw multi-provider keys
+    if (!key && openclawProviderKeys[providerKey]) {
+      key = openclawProviderKeys[providerKey].apiKey;
     }
 
     // For standalone AI_API_KEY, infer provider by key format as a best-effort fallback.
@@ -335,6 +433,14 @@ export async function scanProviders(): Promise<ProviderScanResult[]> {
   }
 
   results.push(ollamaResult);
+
+  // Apply OpenClaw base URLs to custom providers (e.g., moonshot uses api.moonshot.cn, not openai.com)
+  for (const result of results) {
+    if (openclawProviderKeys[result.key]?.baseUrl && result.available) {
+      // Store for later use in pipeline building
+      (result as any).openclawBaseUrl = openclawProviderKeys[result.key].baseUrl;
+    }
+  }
 
   return results;
 }

@@ -14,6 +14,8 @@ import type { ClawdConfig } from './types';
 import { VERSION } from './version';
 import dotenv from 'dotenv';
 import { resolveApiConfig } from './openclaw-credentials';
+import * as fs from 'fs';
+import * as path from 'path';
 
 dotenv.config();
 
@@ -112,6 +114,8 @@ program
 
     if (resolvedApi.source === 'openclaw') {
       console.log('🔗 Using OpenClaw agent credentials for AI provider routing');
+      console.log(`   Text: ${resolvedApi.textModel || 'auto'} via ${resolvedApi.textBaseUrl || 'default'}`);
+      console.log(`   Vision: ${resolvedApi.visionModel || 'auto'} via ${resolvedApi.visionBaseUrl || 'default'}`);
     }
 
     const agent = new Agent(config);
@@ -151,18 +155,31 @@ program
   .option('--provider <provider>', 'AI provider (auto-detected, or specify: anthropic|openai|ollama|kimi|groq|...)')
   .option('--api-key <key>', 'AI provider API key')
   .option('--no-save', 'Don\'t save config to disk')
+  .option('--reset', 'Delete saved config and re-detect everything from scratch')
   .action(async (opts) => {
     const { runDoctor } = await import('./doctor');
     const resolvedApi = resolveApiConfig({
       apiKey: opts.apiKey,
       provider: opts.provider,
     });
+
+    if (opts.reset) {
+      const configPath = path.join(__dirname, '..', '.clawd-config.json');
+      if (fs.existsSync(configPath)) {
+        fs.unlinkSync(configPath);
+        console.log('🗑️  Cleared saved config — re-detecting from scratch\n');
+      }
+    }
+
+    // Only use explicit CLI flags for single-provider override.
+    // OpenClaw auto-detected credentials should go through multi-provider scan.
+    const isExplicit = !!(opts.apiKey || opts.provider);
     await runDoctor({
-      apiKey: resolvedApi.apiKey,
-      provider: resolvedApi.provider || opts.provider,
-      baseUrl: resolvedApi.baseUrl,
-      textModel: resolvedApi.textModel,
-      visionModel: resolvedApi.visionModel,
+      apiKey: isExplicit ? resolvedApi.apiKey : undefined,
+      provider: isExplicit ? (resolvedApi.provider || opts.provider) : undefined,
+      baseUrl: isExplicit ? resolvedApi.baseUrl : undefined,
+      textModel: isExplicit ? resolvedApi.textModel : undefined,
+      visionModel: isExplicit ? resolvedApi.visionModel : undefined,
       save: opts.save !== false,
     });
   });

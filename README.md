@@ -5,7 +5,7 @@
 <h1 align="center">Clawd Cursor</h1>
 
 <p align="center">
-  <strong>AI Desktop Agent - Smart 3-Layer Pipeline</strong><br>
+  <strong>AI Desktop Agent - Smart 5-Layer Pipeline</strong><br>
   Works with any AI provider · Runs free with local models · Self-healing doctor
 </p>
 
