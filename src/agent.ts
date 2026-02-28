@@ -40,7 +40,7 @@ import { A11yReasoner } from './a11y-reasoner';
 import { BrowserLayer } from './browser-layer';
 import { SmartInteractionLayer } from './smart-interaction';
 import { loadPipelineConfig } from './doctor';
-import type { PipelineConfig } from './providers';
+import { detectProvider, type PipelineConfig } from './providers';
 import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction, A11yAction } from './types';
 
 const MAX_STEPS = 15;
@@ -116,11 +116,54 @@ export class Agent {
     }
   }
 
+  private inferProviderLabel(apiKey?: string, baseUrl?: string, fallback?: string): string {
+    const inferredFromUrl = this.inferProviderFromBaseUrl(baseUrl);
+    if (inferredFromUrl) return inferredFromUrl;
+
+    if (apiKey && apiKey.length > 0) {
+      return detectProvider(apiKey, fallback);
+    }
+
+    return fallback || 'unknown';
+  }
+
+  private inferProviderFromBaseUrl(baseUrl?: string): string | null {
+    const url = (baseUrl || '').toLowerCase();
+    if (!url) return null;
+    if (url.includes('anthropic')) return 'anthropic';
+    if (url.includes('moonshot') || url.includes('kimi')) return 'kimi';
+    if (url.includes('11434') || url.includes('ollama')) return 'ollama';
+    if (url.includes('openai')) return 'openai';
+    if (url.includes('groq')) return 'groq';
+    if (url.includes('together')) return 'together';
+    if (url.includes('deepseek')) return 'deepseek';
+    if (url.includes('nvidia') || url.includes('integrate.api')) return 'nvidia';
+    if (url.includes('mistral')) return 'mistral';
+    if (url.includes('fireworks')) return 'fireworks';
+    return null;
+  }
+
   async connect(): Promise<void> {
     await this.desktop.connect();
 
     // Initialize Browser Layer (Layer 0) — Playwright for browser tasks
     const pipelineConfig = loadPipelineConfig();
+    const textModel = this.config.ai.model || pipelineConfig?.layer2?.model || 'unavailable';
+    const visionModel = this.config.ai.visionModel || pipelineConfig?.layer3?.model || 'unavailable';
+
+    const textProvider = this.inferProviderLabel(
+      this.config.ai.textApiKey || this.config.ai.apiKey,
+      this.config.ai.textBaseUrl || this.config.ai.baseUrl || pipelineConfig?.layer2?.baseUrl,
+      this.config.ai.provider,
+    );
+    const visionProvider = this.inferProviderLabel(
+      this.config.ai.visionApiKey || this.config.ai.apiKey,
+      this.config.ai.visionBaseUrl || this.config.ai.baseUrl || pipelineConfig?.layer3?.baseUrl,
+      this.config.ai.provider,
+    );
+
+    console.log(`🤖 Active models: text=${textModel} (${textProvider}) | vision=${visionModel} (${visionProvider})`);
+
     this.browserLayer = new BrowserLayer(this.config, pipelineConfig || {} as PipelineConfig);
     console.log(`🌐 Layer 0 (Browser): Playwright — CDP or managed Chromium`);
 
