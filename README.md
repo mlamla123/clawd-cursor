@@ -19,7 +19,7 @@
 
 ---
 
-## What's New in v0.5.6
+## What's New in v0.6.0
 
 **Fluid LLM Decomposition, Interactive Doctor, Smart Vision Fallback.**
 
@@ -162,7 +162,7 @@ clawdcursor doctor --provider together --api-key YOUR_KEY
 
 ---
 
-## Compatibility (v0.5.6 Audit)
+## Compatibility (v0.6.0 Audit)
 
 | OS | Status | Notes |
 |----|--------|-------|

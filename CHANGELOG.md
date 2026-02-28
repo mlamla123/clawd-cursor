@@ -2,6 +2,29 @@
 
 All notable changes to Clawd Cursor will be documented in this file.
 
+## [0.6.0] - 2026-02-28 — Universal Provider Support, OpenClaw Integration
+
+### Added
+- **OpenClaw credential integration** — auto-discovers all configured providers from OpenClaw's `auth-profiles.json` and `openclaw.json`. No separate API key needed when running as an OpenClaw skill.
+- **Universal provider support** — added Groq, Together AI, DeepSeek as first-class providers with profiles, env var detection, and key prefix recognition.
+- **Auto-detection as default** — provider defaults to `auto` instead of hardcoding Anthropic. Doctor picks the best available provider automatically.
+- **Mixed provider pipelines** — use Ollama for text (free) + any cloud provider for vision (best quality). Vision credentials preserved when brain reconfigures for text.
+- **Dynamic Ollama model selection** — doctor picks the best available Ollama model instead of hardcoding `qwen2.5:7b`.
+- **Anthropic vision routing fix** — detects Anthropic vision by key prefix (`sk-ant-`) independently of the main provider field, so split-provider setups work correctly.
+
+### Changed
+- Default config no longer assumes any specific provider or model
+- Provider scan loop iterates all registered providers dynamically
+- Help text and doctor output are provider-agnostic
+- `--provider` CLI flag accepts any string (not limited to 4 providers)
+- README updated with 7-provider compatibility table
+
+### Fixed
+- Vision model crash when main provider set to Ollama but vision uses Anthropic (`model not found` error)
+- Brain reconfiguration was wiping vision credentials — now preserved
+
+---
+
 ## [0.5.6] - 2026-02-27 — Fluid Decomposition, Interactive Doctor, Smart Vision Fallback
 
 ### Added
