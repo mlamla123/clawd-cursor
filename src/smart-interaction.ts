@@ -415,6 +415,20 @@ export class SmartInteractionLayer {
     // Get accessibility tree context
     console.log(`   ♿ Smart Interaction: getting accessibility context...`);
     const activeWindow = await this.a11y.getActiveWindow();
+
+    // Fast path: if task requires opening an app that isn't currently active,
+    // skip planning — Computer Use handles app launching much better.
+    const openAppMatch = task.match(/^open\s+(\w+)/i);
+    if (openAppMatch) {
+      const targetApp = openAppMatch[1].toLowerCase();
+      const activeWindowTitle = (activeWindow?.title || '').toLowerCase();
+      const activeWindowProcess = (activeWindow?.processName || '').toLowerCase();
+      if (!activeWindowTitle.includes(targetApp) && !activeWindowProcess.includes(targetApp)) {
+        console.log(`   ⏭️ Smart Interaction: "${targetApp}" not in active window — skipping to Computer Use`);
+        return { handled: false, success: false, steps: [], llmCalls: 0, description: `Target app "${targetApp}" not active` };
+      }
+    }
+
     const a11yContext = await this.a11y.getScreenContext(activeWindow?.processId).catch(() => '');
 
     if (!a11yContext || a11yContext.includes('unavailable')) {
@@ -582,7 +596,9 @@ export class SmartInteractionLayer {
     const hasLoop = /\b(loop|repeat|keep doing|every time|until (done|complete|nothing left|finished))\b/.test(t);
     const hasScreenshot = /\b(screenshot|take a screenshot|screen capture)\b/.test(t);
     const hasWaitAndRespond = /\b(wait for.*(respond|response|reply)|monitor progress)\b/.test(t);
-    return (hasLoop && hasScreenshot) || (hasLoop && hasWaitAndRespond);
+    // Drawing tasks require visual feedback loops (draw -> look -> adjust -> repeat)
+    const isDrawingTask = /\bdraw\b/i.test(task);
+    return (hasLoop && hasScreenshot) || (hasLoop && hasWaitAndRespond) || isDrawingTask;
   }
 
   private isDescribeTask(task: string): boolean {

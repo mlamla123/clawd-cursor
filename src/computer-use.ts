@@ -87,7 +87,7 @@ CRITICAL — SPEED RULES:
 2. CHECKPOINT STRATEGY: Take a screenshot after critical state changes. Then batch all predictable actions without screenshots.
 3. MANDATORY screenshots: (a) after opening any app/dialog/page, (b) after selecting a tool/mode/tab in ANY app, (c) before starting repetitive actions (to confirm setup is correct), (d) to verify final results.
 4. NEVER batch a tool/mode selection click together with the actions that depend on it. Always verify the tool is selected first.
-5. WINDOW MANAGEMENT: For single-app tasks, maximize with "super+Up". For multi-app tasks (side by side, comparing, etc.), use "super+Left" and "super+Right" to snap windows to halves.
+5. WINDOW MANAGEMENT: For single-app tasks, maximize with "super+Up". For multi-app tasks (side by side, comparing, etc.), use "super+Left" and "super+Right" to snap windows to halves. On Windows 11, Win+Up may trigger Snap Assist layout picker. If you see a grid of window layout options, press Escape to dismiss it, then use Alt+Space followed by 'x' to maximize instead.
 6. Prefer keyboard shortcuts over mouse clicks. Type instead of click when possible.
 7. For save/open dialogs: use ABSOLUTE paths (C:\\Users\\...) never environment variables (%USERPROFILE%).
 8. FOCUS HINTS: When you receive a "FOCUS:" hint, only analyze that area of the screenshot. Don't describe the entire screen.

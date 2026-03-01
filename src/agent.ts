@@ -222,6 +222,29 @@ export class Agent {
       stepsTotal: 1,
     };
 
+    // Pre-process: for "open X and Y" tasks, open the app first via Action Router,
+    // then let the pipeline handle "Y" with the app already open.
+    const openAndMatch = task.match(/^(open|launch|start)\s+(\w[\w\s]*?)\s+and\s+(.+)$/i);
+    if (openAndMatch) {
+      const appName = openAndMatch[2].trim();
+      const remainingTask = openAndMatch[3].trim();
+      console.log(`\n🔀 Pre-processing: opening "${appName}" first, then handling "${remainingTask}"`);
+      
+      try {
+        const openResult = await this.router.route(`open ${appName}`);
+        if (openResult.handled) {
+          console.log(`   ✅ "${appName}" opened via Action Router`);
+          // Wait for app to fully launch
+          await new Promise(r => setTimeout(r, 2500));
+          // Now execute the remaining task with the app already open
+          task = remainingTask;
+          console.log(`   ➡️ Continuing with: "${task}"`);
+        }
+      } catch (err) {
+        console.log(`   ⚠️ Pre-open failed: ${err} — proceeding with full task`);
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // TWO COMPLETELY SEPARATE PATHS:
     //
