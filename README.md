@@ -5,7 +5,7 @@
 <h1 align="center">Clawd Cursor</h1>
 
 <p align="center">
-  <strong>AI Desktop Agent - Smart 5-Layer Pipeline</strong><br>
+  <strong>AI Desktop Agent — Universal Smart Pipeline</strong><br>
   Works with any AI provider · Runs free with local models · Self-healing doctor
 </p>
 
@@ -18,6 +18,19 @@
 </p>
 
 ---
+
+## What's New in v0.6.3
+
+**Universal Pipeline, Multi-App Workflows, Provider-Agnostic.**
+
+- **🧠 LLM-based task pre-processor** — one cheap text LLM call decomposes any command into structured intent. No more brittle regex parsing.
+- **📋 Multi-app workflows** — copy from Wikipedia, paste in Notepad? Works. 6-checkpoint tracking ensures every step completes (select → copy → switch app → click → paste → verify).
+- **⌨️ Site-specific shortcuts** — Reddit (j/k/a/c), Twitter/X, YouTube, Gmail, GitHub, Slack + generic hints. Vision LLM uses keyboard instead of slow mouse clicks.
+- **🌐 OS-level browser detection** — reads Windows registry or macOS LaunchServices for actual default browser. No hardcoded Edge/Safari.
+- **🔄 3 smart verification retries** — on failure, builds step log digest + checkpoint status so the vision LLM fixes the exact missed step.
+- **🔌 Mixed-provider pipelines** — kimi for text + anthropic for Computer Use, with per-layer API key resolution from OpenClaw auth-profiles.
+- **🔧 Global install fix** — config discovery now checks package dir first, then cwd.
+- **🏗️ Provider-agnostic internals** — no hardcoded model names, no hardcoded app lists, universal checkpoint detection.
 
 ## What's New in v0.6.1
 
@@ -219,12 +232,17 @@ If these libraries are missing, `clawdcursor doctor` can fail on startup with er
 
 ## How It Works
 
-### The 5-Layer Pipeline
+### The Smart Pipeline
 
-Every task flows through up to 5 layers. Each layer is cheaper and faster than the next. Most tasks never reach Layer 3.
+Every task is pre-processed by a cheap text LLM, then flows through up to 5 layers. Each layer is cheaper and faster than the next. Most tasks never reach Layer 3.
 
 ```
 ┌─────────────────────────────────────────────────────┐
+│  Pre-processor: LLM Task Decomposition (1 text call) │
+│  Parses any natural language → {app, navigate, task,  │
+│  contextHints}. Opens app + navigates URL before      │
+│  pipeline starts. Detects multi-app workflows.        │
+├─────────────────────────────────────────────────────┤
 │  Layer 0: Browser (Playwright — free, instant)       │
 │  Direct browser control via CDP. page.goto(),        │
 │  brings Chrome to foreground. Zero vision tokens.     │
@@ -243,9 +261,10 @@ Every task flows through up to 5 layers. Each layer is cheaper and faster than t
 │  Reads the accessibility tree, sends to cheap LLM     │
 │  (Haiku, Qwen, GPT-4o-mini). No screenshots needed   │
 ├─────────────────────────────────────────────────────┤
-│  Layer 3: Screenshot + Vision (powerful, expensive)   │
-│  Full screenshot → vision LLM. Computer Use for       │
-│  Anthropic, vision fallback for OpenAI/others         │
+│  Layer 3: Computer Use / Vision (powerful, expensive) │
+│  Full screenshot → vision LLM with site-specific      │
+│  shortcuts + scroll guidance + multi-app workflows.   │
+│  3 smart verification retries with step log analysis. │
 └─────────────────────────────────────────────────────┘
 ```
 

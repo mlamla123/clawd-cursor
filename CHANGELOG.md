@@ -2,6 +2,35 @@
 
 All notable changes to Clawd Cursor will be documented in this file.
 
+## [0.6.3] - 2026-03-01 — Universal Pipeline, Multi-App Workflows, Provider-Agnostic
+
+### Added
+- **LLM-based universal task pre-processor** — one cheap text LLM call decomposes any natural language into `{app, navigate, task, contextHints}`, replacing brittle regex parsing
+- **Multi-app workflow support** — copy/paste between apps (e.g. Wikipedia → Notepad) with 6-checkpoint tracking: first_app_focused → first_app_action_done → content_copied → second_app_opened → content_pasted → result_visible
+- **Site-specific keyboard shortcuts** — Reddit (j/k/a/c), Twitter/X (j/k/l/t/r), YouTube (Space/f/m), Gmail (j/k/e/r/c), GitHub (s/t/l), Slack (Ctrl+k), plus generic hints
+- **OS-level default browser detection** — reads Windows registry (HKCU ProgId) or macOS LaunchServices instead of hardcoded Edge/Safari
+- **3 verification retries with step log analysis** — when verification fails, builds a digest of recent actions + checkpoint status so the vision LLM can fix the specific missed step
+- **Mixed-provider pipeline support** — e.g. kimi for text, anthropic for Computer Use, with per-layer API key resolution from OpenClaw auth-profiles
+- **`ComputerUseOverrides` interface** — apiKey, model, baseUrl per-layer for mixed-provider setups
+- **`resolveProviderApiKey()` helper** — reads OpenClaw auth-profiles to find the right API key per provider
+
+### Fixed
+- **Checkpoint system overhaul** — removed auto-termination (completionRatio ≥ 0.90 early exit and isComplete() mid-loop kill), strict detection: content_pasted requires Ctrl+V, content_copied requires Ctrl+C, second_app_opened detects any window switch universally
+- **Pipeline context passing** — `priorContext[]` accumulator flows from pre-processing through to Computer Use (no more amnesia between layers)
+- **Credential resolution order** — .clawd-config → auth-profiles.json → openclaw.json (with template expansion) → env vars
+- **`loadPipelineConfig()` path resolution** — checks package dir first, then cwd (fixes global npm installs)
+- **Smart Interaction model lookup** — uses `PROVIDERS` registry instead of hardcoded model/baseUrl maps; fixes stale `claude-haiku-3-5-20241022` fallback
+- **Scroll behavior** — system prompts instruct PageDown/Space instead of tiny mouse scrolls; default scroll delta 3 → 15
+- **Provider-agnostic internals** — all comments and logs say "vision LLM" instead of "Claude"
+- **Verification retry limit** — max 3 retries prevents infinite verification loops
+- **Universal checkpoint detection** — no hardcoded app lists; `detectTaskType()` uses action patterns only
+
+### Changed
+- Pipeline architecture: LLM Pre-processor → Pre-open app + navigate → L0 Browser → L1 Action Router + Shortcuts → L1.5 Smart Interaction → L2 A11y Reasoner → L3 Computer Use
+- Pre-processor prompt hardened with NEVER rules (never summarize, never drop steps) and VALIDATION RULE
+- MULTI-APP WORKFLOWS section added to both Mac and Windows Computer Use system prompts
+- Checkpoint thresholds tightened: early completion 75% → 90%, skip-verification 50% → 80%
+
 ## [0.6.5] - 2026-02-28 — Checkpoint System, Task Completion Detection
 
 ### Added
