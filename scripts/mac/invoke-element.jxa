@@ -110,18 +110,35 @@ function run(argv) {
             processId: null,
             value: null
         };
+        // Windows ControlType → macOS AX role mapping (mirrors find-element.jxa)
+        var CONTROL_TYPE_MAP = {
+            'Button': 'button', 'Edit': 'text field', 'Document': 'web area',
+            'ComboBox': 'pop up button', 'CheckBox': 'checkbox',
+            'RadioButton': 'radio button', 'Hyperlink': 'link',
+            'MenuItem': 'menu item', 'Menu': 'menu', 'Tab': 'tab group',
+            'TabItem': 'radio button', 'ListItem': 'row', 'TreeItem': 'row',
+            'Slider': 'slider', 'ScrollBar': 'scroll bar',
+            'ToolBar': 'toolbar', 'StaticText': 'static text', 'Window': 'window'
+        };
+
         for (var i = 0; i < argv.length; i++) {
-            if (argv[i] === '-action' && i + 1 < argv.length) {
+            var a = argv[i];
+            var hasNext = i + 1 < argv.length;
+            if ((a === '-action' || a === '-Action') && hasNext) {
                 params.action = argv[++i];
-            } else if (argv[i] === '-name' && i + 1 < argv.length) {
+            } else if ((a === '-name' || a === '-Name') && hasNext) {
                 params.name = argv[++i];
-            } else if (argv[i] === '-role' && i + 1 < argv.length) {
+            } else if ((a === '-role') && hasNext) {
                 params.role = argv[++i];
-            } else if (argv[i] === '-processId' && i + 1 < argv.length) {
+            } else if (a === '-ControlType' && hasNext) {
+                var ct = argv[++i];
+                params.role = CONTROL_TYPE_MAP[ct] || ct.toLowerCase();
+            } else if ((a === '-processId' || a === '-ProcessId') && hasNext) {
                 params.processId = parseInt(argv[++i], 10);
-            } else if (argv[i] === '-value' && i + 1 < argv.length) {
+            } else if ((a === '-value' || a === '-Value') && hasNext) {
                 params.value = argv[++i];
             }
+            // -AutomationId and -Restore have no macOS equivalent; silently ignore
         }
 
         // Validate required parameters
