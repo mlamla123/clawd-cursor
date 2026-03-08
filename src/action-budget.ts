@@ -133,7 +133,11 @@ export function enforceBudget(actionDesc: string, budget: ActionBudget): BudgetV
   const urlMatch = actionDesc.match(/https?:\/\/([^/\s]+)/i) || actionDesc.match(/(?:navigate|go to|open)\s+([a-z0-9.-]+\.[a-z]{2,})/i);
   if (urlMatch && budget.allowedDomains.length > 0) {
     const domain = urlMatch[1].toLowerCase();
-    const domainAllowed = budget.allowedDomains.some(d => domain.includes(d.toLowerCase()));
+    const domainAllowed = budget.allowedDomains.some(d => {
+      const allowed = d.toLowerCase();
+      // Exact match or subdomain match (domain ends with .allowed)
+      return domain === allowed || domain.endsWith('.' + allowed);
+    });
     if (!domainAllowed) {
       return {
         allowed: true,
