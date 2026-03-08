@@ -24,6 +24,8 @@ import type { ClawdConfig } from './types';
 import { Agent } from './agent';
 import { mountDashboard } from './dashboard';
 import { VERSION } from './version';
+import { authMiddleware } from './auth';
+import { taskLimiter, generalLimiter } from './rate-limiter';
 
 // Favorites persistence
 const FAVORITES_PATH = join(process.cwd(), '.clawd-favorites.json');
@@ -123,8 +125,22 @@ export function createServer(agent: Agent, config: ClawdConfig): express.Express
   const app = express();
   app.use(express.json());
 
+  // Mount auth middleware when enabled
+  if (config.auth?.enabled !== false && config.auth?.token) {
+    app.use(authMiddleware(config.auth.token, ['/', '/health']));
+  }
+
   // Mount the web dashboard at GET /
   mountDashboard(app);
+
+  // Mount task rate limiter on POST /task
+  app.post('/task', taskLimiter.middleware('task'));
+
+  // Mount general rate limiter on non-health endpoints
+  app.use((req, res, next) => {
+    if (req.path === '/health') return next();
+    return generalLimiter.middleware('general')(req, res, next);
+  });
 
   // --- Favorites endpoints ---
 

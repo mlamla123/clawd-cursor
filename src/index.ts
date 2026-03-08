@@ -14,6 +14,7 @@ import type { ClawdConfig } from './types';
 import { VERSION } from './version';
 import dotenv from 'dotenv';
 import { resolveApiConfig } from './openclaw-credentials';
+import { generateAuthToken } from './auth';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -82,6 +83,7 @@ program
   .option('--base-url <url>', 'Custom API base URL (OpenAI-compatible)')
   .option('--api-key <key>', 'AI provider API key')
   .option('--debug', 'Save screenshots to debug/ folder (off by default)')
+  .option('--no-auth', 'Disable API authentication (not recommended)')
   .action(async (opts) => {
     // Auto-setup on first run
     const configPath = path.join(__dirname, '..', '.clawd-config.json');
@@ -121,7 +123,16 @@ program
         visionModel: opts.visionModel || resolvedApi.visionModel || opts.model || DEFAULT_CONFIG.ai.visionModel,
       },
       debug: opts.debug || false,
+      auth: { enabled: opts.auth !== false },
     };
+
+    // Generate and display auth token when auth is enabled
+    if (config.auth?.enabled !== false) {
+      const token = generateAuthToken();
+      config.auth = { enabled: true, token };
+      console.log(`\n🔑 Auth token: ${token}`);
+      console.log(`   Include header: Authorization: Bearer ${token}\n`);
+    }
 
     console.log(`
 🐾 ╔═══════════════════════════════════════╗

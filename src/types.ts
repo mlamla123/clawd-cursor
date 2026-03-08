@@ -107,6 +107,7 @@ export interface ClawdConfig {
   };
   /** Save screenshots to debug/ folder. Off by default for security. */
   debug?: boolean;
+  auth?: { enabled: boolean; token?: string };
 }
 
 export const DEFAULT_CONFIG: ClawdConfig = {
@@ -136,4 +137,5 @@ export const DEFAULT_CONFIG: ClawdConfig = {
     format: 'jpeg',
     quality: 50,
   },
+  auth: { enabled: true },
 };
