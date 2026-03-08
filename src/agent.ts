@@ -42,6 +42,10 @@ import { SmartInteractionLayer } from './smart-interaction';
 import { loadPipelineConfig } from './doctor';
 import { detectProvider, type PipelineConfig } from './providers';
 import type { ClawdConfig, AgentState, TaskResult, StepResult, InputAction, A11yAction } from './types';
+import { InjectionDetector } from './injection-detector';
+import { generateBudget, enforceBudget, DEFAULT_BUDGET, type ActionBudget } from './action-budget';
+import { sanitizeScreenshot } from './screenshot-sanitizer';
+import { SafetyReviewer } from './safety-reviewer';
 
 const MAX_STEPS = 15;
 const MAX_SIMILAR_ACTION = 3;
@@ -66,6 +70,9 @@ export class Agent {
     stepsTotal: 0,
   };
   private aborted = false;
+  private injectionDetector: InjectionDetector;
+  private safetyReviewer: SafetyReviewer | null = null;
+  private currentBudget: ActionBudget = { ...DEFAULT_BUDGET };
 
   constructor(config: ClawdConfig) {
     this.config = config;
@@ -114,6 +121,12 @@ export class Agent {
       console.log(`⚡ Running in offline mode (no API key or local LLM). Local parser + action router only.`);
       console.log(`   To unlock AI fallback, configure your OpenClaw agent provider (or set AI_API_KEY in standalone mode) and run: clawdcursor doctor`);
     }
+
+    // Initialize security modules
+    this.injectionDetector = new InjectionDetector();
+    if (this.hasApiKey) {
+      this.safetyReviewer = new SafetyReviewer((user, system) => this.callTextModel(user, system));
+    }
   }
 
   private inferProviderLabel(apiKey?: string, baseUrl?: string, fallback?: string): string {
@@ -141,6 +154,40 @@ export class Agent {
     if (url.includes('mistral')) return 'mistral';
     if (url.includes('fireworks')) return 'fireworks';
     return null;
+  }
+
+  /**
+   * Route a text-only LLM call to whatever provider is available.
+   * Tries SmartInteraction first, then Reasoner, then throws if none available.
+   */
+  async callTextModel(user: string, system: string): Promise<string> {
+    if (this.smartInteraction?.isAvailable()) {
+      return (this.smartInteraction as any).callTextModel(user, system);
+    }
+    if (this.reasoner) {
+      const pipelineConfig = loadPipelineConfig();
+      if (!pipelineConfig) throw new Error('No text model available');
+      const { model, baseUrl } = pipelineConfig.layer2;
+      const apiKey = pipelineConfig.apiKey || '';
+      const fetchResponse = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: 0,
+        }),
+      });
+      const data: any = await fetchResponse.json();
+      return data.choices?.[0]?.message?.content || '';
+    }
+    throw new Error('No text model available');
   }
 
   private async getDefaultBrowser(): Promise<string> {
@@ -350,6 +397,17 @@ export class Agent {
       // Store context hints for shortcut matching
       if (preprocessed.contextHints?.length) {
         priorContext.push(`Context: ${preprocessed.contextHints.join(', ')}`);
+      }
+    }
+
+    // ── Generate action budget (security constraint for the task) ──
+    if (this.hasApiKey) {
+      try {
+        this.currentBudget = await generateBudget(task, (user, system) => this.callTextModel(user, system));
+        console.log(`🛡️ Action budget generated: scope=${this.currentBudget.scope}, apps=[${this.currentBudget.allowedApps}], maxSteps=${this.currentBudget.maxSteps}`);
+      } catch {
+        this.currentBudget = { ...DEFAULT_BUDGET };
+        console.log(`🛡️ Action budget: using default (LLM unavailable)`);
       }
     }
 
@@ -666,9 +724,58 @@ Examples:
     // macOS: bring the target app to front before the first screenshot
     await this.prefocusAppForTask(task);
 
+    // ── Security: pre-execution injection detection + budget check ──
+    let injectionWarningPrefix = '';
+    try {
+      const screenText = await this.a11y.getScreenContext().catch(() => '');
+      if (screenText) {
+        const injResult = this.injectionDetector.detect(screenText);
+        if (injResult.detected && (injResult.severity === 'medium' || injResult.severity === 'high')) {
+          injectionWarningPrefix = `[SECURITY WARNING: Potential prompt injection detected in screen content. Patterns: ${injResult.patterns.map(p => p.category).join(', ')}. Sanitized text follows.]\n`;
+          console.log(`🚨 Injection detected on screen (${injResult.severity}): ${injResult.patterns.map(p => p.category).join(', ')}`);
+        }
+      }
+
+      // Budget enforcement on overall task
+      const budgetCheck = enforceBudget(task, this.currentBudget);
+      if (budgetCheck.severity === 'block') {
+        console.log(`🛡️ Budget BLOCKED task: ${budgetCheck.reason}`);
+        this.state.status = 'idle';
+        this.state.currentTask = undefined;
+        return {
+          success: false,
+          steps: [{ action: 'blocked', description: `Budget blocked: ${budgetCheck.reason}`, success: false, timestamp: Date.now() }],
+          duration: Date.now() - startTime,
+        };
+      }
+      if (budgetCheck.severity === 'warn' && this.safetyReviewer) {
+        const review = await this.safetyReviewer.review({
+          task,
+          action: task,
+          injectionDetected: injectionWarningPrefix.length > 0,
+          budgetViolation: budgetCheck,
+        });
+        if (!review.approved) {
+          console.log(`🛡️ Safety reviewer blocked task: ${review.reason}`);
+          this.state.status = 'idle';
+          this.state.currentTask = undefined;
+          return {
+            success: false,
+            steps: [{ action: 'blocked', description: `Safety review blocked: ${review.reason}`, success: false, timestamp: Date.now() }],
+            duration: Date.now() - startTime,
+          };
+        }
+      }
+    } catch (err) {
+      console.log(`   ⚠️ Security pre-check failed: ${err} — proceeding with existing safety layer`);
+    }
+
+    // Prepend injection warning to task if detected
+    const effectiveTask = injectionWarningPrefix ? `${injectionWarningPrefix}${task}` : task;
+
     this.state.status = 'acting';
     try {
-      const cuResult = await this.computerUse!.executeSubtask(task, debugDir, 0, priorContext);
+      const cuResult = await this.computerUse!.executeSubtask(effectiveTask, debugDir, 0, priorContext);
 
       const result: TaskResult = {
         success: cuResult.success,
@@ -959,6 +1066,26 @@ Examples:
           console.log(`   🔄 Same action repeated ${MAX_SIMILAR_ACTION} times — giving up on this subtask`);
           steps.push({ action: 'stuck', description: `Stuck: repeated "${actionKey}"`, success: false, timestamp: Date.now() });
           return { success: false, llmCalls };
+        }
+
+        // Budget enforcement
+        const budgetCheck = enforceBudget(decision.description, this.currentBudget);
+        if (budgetCheck.severity === 'block') {
+          console.log(`   🛡️ Budget BLOCKED action: ${budgetCheck.reason}`);
+          steps.push({ action: 'blocked', description: `Budget blocked: ${budgetCheck.reason}`, success: false, timestamp: Date.now() });
+          return { success: false, llmCalls };
+        }
+        if (budgetCheck.severity === 'warn' && this.safetyReviewer) {
+          const review = await this.safetyReviewer.review({
+            task: subtask,
+            action: decision.description,
+            budgetViolation: budgetCheck,
+          });
+          if (!review.approved) {
+            console.log(`   🛡️ Safety reviewer blocked action: ${review.reason}`);
+            steps.push({ action: 'blocked', description: `Safety review blocked: ${review.reason}`, success: false, timestamp: Date.now() });
+            continue;
+          }
         }
 
         // Safety check
