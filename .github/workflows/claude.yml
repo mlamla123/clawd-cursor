@@ -8,9 +8,29 @@ on:
     types: [created]
 
 jobs:
-  claude:
+  # Auto-review on PR open/push
+  review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for bugs, security issues, and code quality problems.
+            Focus on correctness — logic errors, edge cases, regressions.
+            Post findings as review comments on the specific lines.
+            If no issues found, post a short confirmation comment.
+          claude_args: "--model claude-sonnet-4-6 --max-turns 5"
+
+  # Respond to @claude mentions in comments
+  respond:
     if: |
-      (github.event_name == 'pull_request') ||
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
@@ -23,4 +43,4 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--model claude-sonnet-4-6 --max-turns 5"
+          claude_args: "--model claude-sonnet-4-6 --max-turns 10"
