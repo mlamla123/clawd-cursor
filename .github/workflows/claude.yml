@@ -24,13 +24,20 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Review this pull request for bugs, security issues, and code quality problems.
             Focus on correctness — logic errors, edge cases, regressions.
-            Post findings as review comments on the specific lines.
-            If no issues found, post a short confirmation comment.
-          claude_args: "--model claude-sonnet-4-6 --max-turns 15"
-          allowed_tools: "Read,Grep,Glob,LS"
+            Use `gh pr comment` for top-level feedback.
+            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
+            Only post GitHub comments - don't submit review text as messages.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 15
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,LS"
 
   # Respond to @claude mentions in comments
   respond:
